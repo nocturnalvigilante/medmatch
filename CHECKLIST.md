@@ -11,14 +11,14 @@ Core task: type an Indian medicine → confirm its salts → see US names, OTC/R
 - [ ] Swap in the real medicines Aditi, Karthik and Lakshmi named (you)
 
 ## 2. Build end to end (Nov 11–14)
-- [ ] (code done: `/api/read`) Gemini key in `.env.local` (you: aistudio.google.com, free tier) → AI reads brand → salts + strengths
+- [x] Gemini reads brand → salts + strengths (3.5-flash, retry + lite fallback)
 - [x] Confirm screen: user edits/accepts salts before any lookup
 - [x] Result card: US box names first, OTC/Rx, "Not sold in the US → ask a pharmacist"
 - [ ] Clerk sign-in (you: create app, paste keys)
 - [ ] Supabase `cabinet` table + RLS on (you: create project, paste keys)
 - [x] Same-drug overlap warning (local cabinet for now; moves to Supabase)
 - [x] GitHub repo: https://github.com/nocturnalvigilante/medmatch
-- [ ] Vercel deploy, env vars set there, live link from day one (you: `npm i -g vercel`, `vercel login`)
+- [x] Live: https://medmatch-xi.vercel.app (GEMINI_API_KEY set in Vercel)
 - [ ] Agent walkthrough in browser as a new person; fix each stuck point
 
 ## 3. Test with real users (Nov 14–16): you, not the agent

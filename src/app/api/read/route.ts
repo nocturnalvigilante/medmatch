@@ -2,6 +2,7 @@
 // The model only proposes ingredients; it never decides US equivalents.
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+const FALLBACK = "gemini-3.5-flash-lite";
 
 const PROMPT = `You read Indian medicine brand names. Given a brand as printed on an Indian strip or box,
 return its active ingredients (salts) and strengths per tablet/unit.
@@ -21,16 +22,22 @@ export async function POST(req: Request) {
   if (!brand) return Response.json({ error: "Type a brand name." }, { status: 400 });
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: `${PROMPT}\n\nBrand: ${JSON.stringify(brand)}` }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0 },
-      }),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) throw new Error(`Gemini ${res.status}`);
+    // Gemini often returns 503/429 when busy: retry, then fall back to the lite model.
+    let res: Response | undefined;
+    for (const model of [MODEL, MODEL, FALLBACK]) {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: `${PROMPT}\n\nBrand: ${JSON.stringify(brand)}` }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0 },
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.status !== 503 && res.status !== 429) break;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    if (!res?.ok) throw new Error(`Gemini ${res?.status}`);
     const j = await res.json();
     const parsed = JSON.parse(j.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}");
     const salts = (Array.isArray(parsed.salts) ? parsed.salts : [])
