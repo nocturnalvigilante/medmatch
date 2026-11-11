@@ -11,12 +11,12 @@ Core task: type an Indian medicine → confirm its salts → see US names, OTC/R
 - [ ] Swap in the real medicines Aditi, Karthik and Lakshmi named (you)
 
 ## 2. Build end to end (Nov 11–14)
-- [ ] Gemini key in `.env.local` (you: aistudio.google.com, free tier) → AI reads brand → salts + strengths
-- [ ] Confirm screen: user edits/accepts salts before any lookup
-- [ ] Result card: US box names first, OTC/Rx, "Not sold in the US → ask a pharmacist"
+- [ ] (code done: `/api/read`) Gemini key in `.env.local` (you: aistudio.google.com, free tier) → AI reads brand → salts + strengths
+- [x] Confirm screen: user edits/accepts salts before any lookup
+- [x] Result card: US box names first, OTC/Rx, "Not sold in the US → ask a pharmacist"
 - [ ] Clerk sign-in (you: create app, paste keys)
 - [ ] Supabase `cabinet` table + RLS on (you: create project, paste keys)
-- [ ] Same-drug overlap warning in cabinet (cheap once cabinet exists)
+- [x] Same-drug overlap warning (local cabinet for now; moves to Supabase)
 - [ ] GitHub repo (`gh repo create medmatch --public`)
 - [ ] Vercel deploy, env vars set there, live link from day one (you: `npm i -g vercel`, `vercel login`)
 - [ ] Agent walkthrough in browser as a new person; fix each stuck point

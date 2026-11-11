@@ -83,11 +83,15 @@ const COMMON_BRANDS: Record<string, string[]> = {
   prochlorperazine: ["Compazine"],
 };
 
+// External API JSON; shapes are checked field by field with optional chaining.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type J = any;
+
 const cache = new Map<string, unknown>();
 
 class NotFound extends Error {}
 
-async function getJSON(url: string): Promise<any> {
+async function getJSON(url: string): Promise<J> {
   if (cache.has(url)) return cache.get(url);
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (res.status === 404) throw new NotFound(url);
@@ -120,7 +124,7 @@ async function toIngredient(rxcui: string): Promise<{ rxcui: string; name: strin
   const p = await getJSON(`${RXNAV}/rxcui/${rxcui}/properties.json`);
   if (p.properties?.tty === "IN") return { rxcui, name: p.properties.name, label: p.properties.name };
   const r = await getJSON(`${RXNAV}/rxcui/${rxcui}/related.json?tty=IN`);
-  const ins = (r.relatedGroup?.conceptGroup ?? []).flatMap((g: any) => g.conceptProperties ?? []);
+  const ins = (r.relatedGroup?.conceptGroup ?? []).flatMap((g: J) => g.conceptProperties ?? []);
   if (ins.length !== 1) return undefined; // 0 or a multi-ingredient concept: don't guess
   const own = String(p.properties?.name ?? "");
   const label = own && !own.toLowerCase().startsWith(ins[0].name.toLowerCase()) ? own.toLowerCase() : ins[0].name;
@@ -132,8 +136,8 @@ type Product = { rxcui: string; name: string; tty: string };
 async function products(ingredient: string): Promise<Product[]> {
   const j = await getJSON(`${RXNAV}/drugs.json?name=${enc(ingredient)}`);
   return (j.drugGroup?.conceptGroup ?? [])
-    .filter((g: any) => g.tty === "SCD" || g.tty === "SBD")
-    .flatMap((g: any) => (g.conceptProperties ?? []).map((p: any) => ({ rxcui: p.rxcui, name: p.name, tty: g.tty })));
+    .filter((g: J) => g.tty === "SCD" || g.tty === "SBD")
+    .flatMap((g: J) => (g.conceptProperties ?? []).map((p: J) => ({ rxcui: p.rxcui, name: p.name, tty: g.tty })));
 }
 
 // Human OTC / Rx listing counts and brand-name counts in openFDA for these RxNorm product ids.
