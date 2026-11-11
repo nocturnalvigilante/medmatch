@@ -1,7 +1,7 @@
 // AI step: brand name → proposed salts + strengths. The user must confirm before any lookup.
 // The model only proposes ingredients; it never decides US equivalents.
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
 
 const PROMPT = `You read Indian medicine brand names. Given a brand as printed on an Indian strip or box,
 return its active ingredients (salts) and strengths per tablet/unit.
