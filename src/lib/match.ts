@@ -95,7 +95,7 @@ async function getJSON(url: string): Promise<J> {
   if (cache.has(url)) return cache.get(url);
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (res.status === 404) throw new NotFound(url);
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
+  if (!res.ok) throw new Error(String(res.status)); // never put the URL (may hold api_key) in an error
   const json = await res.json();
   cache.set(url, json);
   return json;
@@ -185,7 +185,14 @@ function rankBrands(names: string[], prods: Product[], counts: Map<string, numbe
   const rest = listed.filter((k) => !commonKeys.includes(k)).sort((a, b) => score(b) - score(a));
   // Keep it short: shelf names plus one runner-up, else the top 3 (avoids regional/odd brands like "Bactimicina").
   const pick = commonKeys.length ? [...commonKeys, ...rest.slice(0, 1)] : rest.slice(0, 3);
-  return [...new Set(pick)].map((k) => byKey.get(k)!);
+  // A brand sold only as extended-release is a different product from a plain tablet (e.g. Glumetza vs metformin 500).
+  const isER = (n: string) => /Extended Release|\b(12|24) HR\b/i.test(n);
+  const anyPlain = prods.some((p) => !isER(p.name));
+  const erOnly = (k: string) => {
+    const mine = prods.filter((p) => p.tty === "SBD" && p.name.toLowerCase().endsWith(`[${k}]`));
+    return anyPlain && mine.length > 0 && mine.every((p) => isER(p.name));
+  };
+  return [...new Set(pick)].map((k) => byKey.get(k)! + (erOnly(k) ? " (extended-release)" : ""));
 }
 
 export async function matchDrug(query: string, strengthMg?: number, form: Form = "oral"): Promise<DrugMatch> {
@@ -218,7 +225,14 @@ export async function matchDrug(query: string, strengthMg?: number, form: Form =
       return { ...matched, status, note: `Not sold in the US${where}. There is no US box for this. Ask a pharmacist or doctor.` };
     }
     const usStrengths = [...new Set(single.filter((p) => p.tty === "SCD").map((p) => p.name.replace(/^.*?(?=\d)/, "")))].sort();
-    const sameStrengthInUS = strengthMg != null && single.length ? usStrengths.some((s) => new RegExp(`(^|\\s)${strengthMg} MG\\b`).test(s)) : undefined;
+    // RxNorm keeps concepts nobody sells (e.g. aspirin 75 MG). Count a strength only if openFDA lists it.
+    let sameStrengthInUS: boolean | undefined;
+    if (strengthMg != null && single.length) {
+      const re = new RegExp(`(^|\\s)${strengthMg} MG\\b`);
+      const ids = single.filter((p) => re.test(p.name.replace(/^.*?(?=\d)/, ""))).map((p) => p.rxcui);
+      const listed = ids.length ? await fda(ids) : { otc: 0, rx: 0 };
+      sameStrengthInUS = listed.otc + listed.rx > 0;
+    }
 
     return {
       ...matched,
@@ -231,6 +245,7 @@ export async function matchDrug(query: string, strengthMg?: number, form: Form =
       note: combinationOnly ? "In the US this is only sold mixed with other drugs." : undefined,
     };
   } catch (e) {
-    return { ...base, result: "error", status: "unknown", note: `Lookup failed (${(e as Error).message}). Try again; we won't guess.` };
+    console.error("match lookup failed:", (e as Error).message);
+    return { ...base, result: "error", status: "unknown", note: "Lookup failed. Try again; we won't guess." };
   }
 }

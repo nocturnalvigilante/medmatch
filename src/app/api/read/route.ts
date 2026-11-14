@@ -48,18 +48,29 @@ export async function POST(req: Request) {
       .map((s: { name?: unknown; mg?: unknown }) => ({ name: String(s.name ?? "").slice(0, 80), mg: Number(s.mg) > 0 ? Number(s.mg) : undefined }))
       .filter((s: { name: string }) => s.name);
 
-  // Lite (~1s). If it fails, sends bad JSON, or doesn't recognise the name, Lite thinking harder (~2s).
-  // Full Flash (10-30s) only when Lite is down entirely.
-  let parsed = await ask(MODEL);
-  if (!parsed || cleanSalts(parsed).length === 0) parsed = (await ask(MODEL, "high")) ?? parsed;
-  if (!parsed) parsed = await ask(FALLBACK);
+  // Ask twice in parallel: quick (~1s) and careful (~3s). A real brand gets the same ingredients both times.
+  // AI eval: a made-up brand ("Duraflux") got invented ingredients at "high" confidence, and different ones on
+  // another run. So if the two answers disagree, we mark it "low" and the page makes the user check the strip.
+  const [quick, careful] = await Promise.all([ask(MODEL, "low"), ask(MODEL, "high")]);
+  // Compare drugs, not spellings: drop salt words ("potassium clavulanate" = "clavulanic acid") and
+  // use the first 4 letters, so "amoxycillin" (Indian) and "amoxicillin" count as the same drug.
+  const SALT_WORDS = /\b(potassium|sodium|calcium|magnesium|hydrochloride|dihydrochloride|hcl|maleate|mesylate|besylate|succinate|tartrate|citrate|sulphate|sulfate|phosphate|acetate|fumarate|bromide|hydrobromide|trihydrate|dihydrate|monohydrate)\b/g;
+  const saltSet = (p: Parsed | null) =>
+    cleanSalts(p).map((s: { name: string }) => s.name.toLowerCase().replace(SALT_WORDS, "").trim().slice(0, 4)).sort().join("+");
+  const disagree = !!quick && !!careful && saltSet(quick) !== saltSet(careful);
+  let parsed = [quick, careful].find((p) => cleanSalts(p).length > 0) ?? quick ?? careful;
+  if (!parsed) parsed = await ask(FALLBACK); // Lite down entirely; full Flash (10-30s)
   if (!parsed) {
     return Response.json({ error: "ai_failed", note: "Our AI couldn't read that right now. Type the ingredients from the strip." }, { status: 502 });
   }
+  if (disagree) parsed = { ...parsed, confidence: "low" };
+  // AI eval: Drotin (40 mg) came back as 80 mg. When the strength isn't in the name, don't prefill a number;
+  // the user types the mg from the strip instead of trusting a guessed dose.
+  const strengthKnown = parsed.strength_known !== false;
   return Response.json({
     brand: String(parsed.brand ?? brand),
-    salts: cleanSalts(parsed),
-    strengthKnown: parsed.strength_known !== false,
+    salts: cleanSalts(parsed).map((s) => (strengthKnown ? s : { name: s.name })),
+    strengthKnown,
     confidence: ["high", "medium", "low"].includes(String(parsed.confidence)) ? parsed.confidence : "low",
     note: String(parsed.note ?? ""),
   });

@@ -45,6 +45,9 @@ export default function Home() {
   const [brand, setBrand] = useState("");
   const [salts, setSalts] = useState<Salt[]>([]);
   const [aiNote, setAiNote] = useState("");
+  // AI eval: made-up brands came back with invented ingredients at "medium" confidence; real brands came back "high".
+  const [unsure, setUnsure] = useState(false);
+  const [checkedStrip, setCheckedStrip] = useState(false);
   const [busy, setBusy] = useState(false);
   const [slow, setSlow] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -102,6 +105,8 @@ export default function Home() {
     const slowTimer = setTimeout(() => setSlow(true), 3000);
     setError("");
     setAiNote("");
+    setUnsure(false);
+    setCheckedStrip(false);
     try {
       const res = await fetch("/api/read", { method: "POST", body: JSON.stringify({ brand }) });
       const j = await res.json();
@@ -113,7 +118,8 @@ export default function Home() {
         setSalts(j.salts.length ? j.salts.map((s: Salt) => ({ ...s, form: "oral" })) : [{ name: "", form: "oral" }]);
         const bits = [];
         if (!j.salts.length) bits.push("We don't recognise this brand. Type the ingredients from the strip.");
-        else bits.push(`AI read this with ${j.confidence} confidence. Check it against the back of your strip.`);
+        else if (j.confidence === "high") bits.push("Check these against the back of your strip.");
+        setUnsure(j.salts.length > 0 && j.confidence !== "high");
         if (j.salts.length && !j.strengthKnown) bits.push("Strength wasn't in the name. Check the mg on the strip.");
         if (j.note) bits.push(j.note);
         setAiNote(bits.join(" "));
@@ -158,6 +164,8 @@ export default function Home() {
     setSalts([]);
     setCurrent(null);
     setAiNote("");
+    setUnsure(false);
+    setCheckedStrip(false);
     setError("");
   }
 
@@ -167,7 +175,7 @@ export default function Home() {
     <main className="mx-auto max-w-xl px-4 py-8 sm:py-12">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">MedMatch</h1>
-        <p className="mt-1 text-zinc-600 dark:text-zinc-400">Find the US name for a medicine you brought from India.</p>
+        <p className="mt-1 text-zinc-600 dark:text-zinc-400">Moved to the US with medicines from India? Find what to ask for at a US pharmacy.</p>
       </header>
 
       {step === "brand" && (
@@ -175,6 +183,14 @@ export default function Home() {
           <label htmlFor="brand" className="block font-medium">Medicine name on the strip</label>
           <input id="brand" className={input} placeholder="e.g. Combiflam, Dolo 650, Pan-D" value={brand} onChange={(e) => setBrand(e.target.value)} autoFocus />
           <button className={primary} disabled={busy || !brand.trim()}>{busy ? "Reading…" : "Next"}</button>
+          {!busy && (
+            <p className="text-sm text-zinc-500">
+              Try:{" "}
+              {["Dolo 650", "Pan-D", "Combiflam"].map((ex) => (
+                <button key={ex} type="button" className="mr-2 underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-200" onClick={() => setBrand(ex)}>{ex}</button>
+              ))}
+            </p>
+          )}
           {slow && <p className="text-sm text-zinc-500">Still reading. Unusual names take a few more seconds.</p>}
         </form>
       )}
@@ -206,7 +222,13 @@ export default function Home() {
           </label>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={ghost} onClick={() => setSalts([...salts, { name: "", form: salts[0]?.form ?? "oral" }])}>+ Add another ingredient from the strip</button>
-            <button type="button" className={primary} onClick={lookUp} disabled={busy}>{busy ? "Checking US sources…" : "These are right, find US names"}</button>
+            {unsure && (
+              <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <p><b>Our AI isn&apos;t sure this brand exists.</b> These ingredients may be a guess. Only continue if they match what&apos;s printed on your strip, or type them yourself.</p>
+                <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={checkedStrip} onChange={(e) => setCheckedStrip(e.target.checked)} /> I checked these against my strip</label>
+              </div>
+            )}
+            <button type="button" className={primary} onClick={lookUp} disabled={busy || (unsure && !checkedStrip)}>{busy ? "Checking US sources…" : "These are right, find US names"}</button>
           </div>
           <button type="button" className="text-sm text-zinc-500 underline" onClick={reset}>Start over</button>
         </section>
@@ -294,7 +316,12 @@ function Card({ m, onSuggest }: { m: DrugMatch; onSuggest: (name: string) => voi
         <p className="mt-3"><span className="text-sm text-zinc-500">Look for on the shelf: </span><b>{m.brands.join(", ")}</b>, or the generic “{m.usName}”</p>
       )}
       {(m.status === "otc" || m.status === "rx") && m.brands.length === 0 && <p className="mt-3 text-sm">Sold as the generic “{m.usName}”.</p>}
-      {m.sameStrengthInUS === false && <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{m.strengthMg} mg isn&apos;t a standard US strength. Ask the pharmacist about the dose.</p>}
+      {m.status === "rx" && (
+        <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm dark:bg-amber-950/40">
+          <b>To get a US prescription:</b> book your university&apos;s student health clinic, an urgent care clinic, or a telehealth visit. Bring this strip so the doctor can see exactly what you took at home.
+        </p>
+      )}
+      {m.sameStrengthInUS === false &&<p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{m.strengthMg} mg isn&apos;t a standard US strength. Ask the pharmacist about the dose.</p>}
       {m.note && <p className="mt-2 text-sm">{m.note}</p>}
     </article>
   );

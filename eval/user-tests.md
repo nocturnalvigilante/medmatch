@@ -48,3 +48,6 @@ Also: Crocin's mg box was left blank with no hint; unknown names sat on "Reading
 - Saving: "✓ Saved on this device / to your account" message; header now says "Sign in to sync your cabinet".
 - Typos: "combiflame" → "Did you mean Combiflam?"
 - Clearer "+ Add another ingredient from the strip" button.
+- First screen says who it's for ("Moved to the US with medicines from India?") with tappable examples (from Friend 1).
+- Prescription results say where to get a US prescription (student health, urgent care, telehealth), as the proposal promised.
+- From the AI eval (`eval/ai-results.csv`): the AI answers twice, and if the answers disagree a red "AI isn't sure" box appears, and you must tick that you checked the strip. Guessed strengths are no longer prefilled.

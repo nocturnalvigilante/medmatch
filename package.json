@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "match-test": "node scripts/match-test.ts"
+    "match-test": "node scripts/match-test.ts",
+    "ai-test": "node scripts/ai-test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.10.0",
