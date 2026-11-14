@@ -10,9 +10,11 @@
     "match-test": "node scripts/match-test.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.10.0",
+    "@supabase/supabase-js": "^2.119.0",
     "next": "15.5.29",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react": "~19.1.4",
+    "react-dom": "~19.1.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

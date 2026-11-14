@@ -1,8 +1,9 @@
 // AI step: brand name → proposed salts + strengths. The user must confirm before any lookup.
 // The model only proposes ingredients; it never decides US equivalents.
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
-const FALLBACK = "gemini-3.5-flash-lite";
+// Lite answers in <1s; full Flash took 10-30s in testing, so it is only the backup.
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
+const FALLBACK = "gemini-3.5-flash";
 
 const PROMPT = `You read Indian medicine brand names. Given a brand as printed on an Indian strip or box,
 return its active ingredients (salts) and strengths per tablet/unit.
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
   if (!brand) return Response.json({ error: "Type a brand name." }, { status: 400 });
 
   try {
-    // Gemini often returns 503/429 when busy: retry, then fall back to the lite model.
+    // Gemini often returns 503/429 or stalls when busy: retry, then fall back to full Flash.
     let res: Response | undefined;
     for (const model of [MODEL, MODEL, FALLBACK]) {
       res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -30,11 +31,11 @@ export async function POST(req: Request) {
         headers: { "content-type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: `${PROMPT}\n\nBrand: ${JSON.stringify(brand)}` }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0 },
+          generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "low" } },
         }),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (res.status !== 503 && res.status !== 429) break;
+        signal: AbortSignal.timeout(model === FALLBACK ? 20000 : 8000),
+      }).catch(() => undefined); // timeout → try the next model
+      if (res && res.status !== 503 && res.status !== 429) break;
       await new Promise((r) => setTimeout(r, 800));
     }
     if (!res?.ok) throw new Error(`Gemini ${res?.status}`);

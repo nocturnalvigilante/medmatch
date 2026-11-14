@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { supabaseWithClerk } from "@/lib/supabase";
 import type { DrugMatch, Form } from "@/lib/match";
 
 type Salt = { name: string; mg?: number; form: Form };
@@ -29,18 +31,47 @@ export default function Home() {
   const [current, setCurrent] = useState<Medicine | null>(null);
   const [cabinet, setCabinet] = useState<Medicine[]>([]);
 
-  // Local cabinet until sign-in + Supabase land.
+  // Signed out: cabinet lives in this browser. Signed in: it lives in Supabase (RLS = own rows only).
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const db = useMemo(() => (isSignedIn ? supabaseWithClerk(() => getToken()) : null), [isSignedIn, getToken]);
+
   useEffect(() => {
-    try {
-      setCabinet(JSON.parse(localStorage.getItem("cabinet") ?? "[]"));
-    } catch {}
-  }, []);
-  const saveCabinet = (c: Medicine[]) => {
+    if (!isLoaded) return;
+    if (!db) {
+      try {
+        setCabinet(JSON.parse(localStorage.getItem("cabinet") ?? "[]"));
+      } catch {}
+      return;
+    }
+    db.from("cabinet")
+      .select("med_id, brand, matches")
+      .order("created_at")
+      .then(({ data, error }) => {
+        if (error) return setError("Couldn't load your saved cabinet. Try again in a minute.");
+        setCabinet((data ?? []).map((r) => ({ id: r.med_id, brand: r.brand, matches: r.matches })));
+      });
+  }, [isLoaded, db]);
+
+  async function saveCabinet(c: Medicine[]) {
+    const before = cabinet;
     setCabinet(c);
-    try {
-      localStorage.setItem("cabinet", JSON.stringify(c));
-    } catch {}
-  };
+    if (!db) {
+      try {
+        localStorage.setItem("cabinet", JSON.stringify(c));
+      } catch {}
+      return;
+    }
+    const added = c.filter((m) => !before.some((b) => b.id === m.id));
+    const removed = before.filter((b) => !c.some((m) => m.id === b.id));
+    const results = await Promise.all([
+      ...added.map((m) => db.from("cabinet").insert({ med_id: m.id, brand: m.brand, matches: m.matches })),
+      ...removed.map((m) => db.from("cabinet").delete().eq("med_id", m.id)),
+    ]);
+    if (results.some((r) => r.error)) {
+      setCabinet(before);
+      setError("Couldn't save to your cabinet. Try again.");
+    }
+  }
 
   async function readBrand(e: React.FormEvent) {
     e.preventDefault();
@@ -128,8 +159,8 @@ export default function Home() {
           </div>
           {salts.map((s, i) => (
             <div key={i} className="flex gap-2">
-              <input aria-label="Ingredient" className={input} placeholder="Ingredient, e.g. paracetamol" value={s.name} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-              <input aria-label="Strength in mg" className={`${input} w-24 shrink-0`} inputMode="decimal" placeholder="mg" value={s.mg ?? ""} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, mg: Number(e.target.value) || undefined } : x)))} />
+              <input aria-label="Ingredient" className={`${input} min-w-0 flex-1`} placeholder="Ingredient, e.g. paracetamol" value={s.name} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+              <input aria-label="Strength in mg" className={`${input.replace("w-full", "")} w-24 shrink-0`} inputMode="decimal" placeholder="mg" value={s.mg ?? ""} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, mg: Number(e.target.value) || undefined } : x)))} />
               <button type="button" aria-label="Remove ingredient" className="px-2 text-zinc-500 hover:text-red-600" onClick={() => setSalts(salts.filter((_, j) => j !== i))}>✕</button>
             </div>
           ))}
