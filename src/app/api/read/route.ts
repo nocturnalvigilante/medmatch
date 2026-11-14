@@ -8,7 +8,8 @@ const FALLBACK = "gemini-3.5-flash";
 const PROMPT = `You read Indian medicine brand names. Given a brand as printed on an Indian strip or box,
 return its active ingredients (salts) and strengths per tablet/unit.
 Rules:
-- Only answer if you are confident this exact brand exists in India. If unsure, return "salts": [] and say why in "note".
+- Only answer if you are confident this brand exists in India. If unsure, return "salts": [] and say why in "note".
+- If the input is an obvious misspelling of a well-known Indian brand (e.g. "combiflame" → "Combiflam", "dolo650" → "Dolo 650"), answer for the corrected brand, put the corrected spelling in "brand", and say "Did you mean <brand>?" in "note".
 - Different strengths of one brand exist (e.g. "Dolo 650" vs "Dolo 500"). If the strength is not in the input, set "strength_known": false.
 - Use Indian (INN) names as printed, e.g. "paracetamol", "pantoprazole sodium".
 - Never suggest US names or equivalents.

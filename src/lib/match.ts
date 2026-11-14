@@ -183,7 +183,9 @@ function rankBrands(names: string[], prods: Product[], counts: Map<string, numbe
   const listed = [...byKey.keys()].filter((k) => score(k) > 0);
   const commonKeys = names.flatMap((n) => COMMON_BRANDS[n] ?? []).map((b) => b.toLowerCase()).filter((k) => listed.includes(k));
   const rest = listed.filter((k) => !commonKeys.includes(k)).sort((a, b) => score(b) - score(a));
-  return [...new Set([...commonKeys, ...rest])].slice(0, 5).map((k) => byKey.get(k)!);
+  // Keep it short: shelf names plus one runner-up, else the top 3 (avoids regional/odd brands like "Bactimicina").
+  const pick = commonKeys.length ? [...commonKeys, ...rest.slice(0, 1)] : rest.slice(0, 3);
+  return [...new Set(pick)].map((k) => byKey.get(k)!);
 }
 
 export async function matchDrug(query: string, strengthMg?: number, form: Form = "oral"): Promise<DrugMatch> {

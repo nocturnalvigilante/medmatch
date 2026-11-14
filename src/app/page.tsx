@@ -86,6 +86,7 @@ export default function Home() {
         setSalts([{ name: "", form: "oral" }]);
         setAiNote(j.note ?? "Type the ingredients from the strip.");
       } else {
+        if (j.salts.length && j.brand) setBrand(j.brand); // use the corrected spelling, e.g. "Combiflam"
         setSalts(j.salts.length ? j.salts.map((s: Salt) => ({ ...s, form: "oral" })) : [{ name: "", form: "oral" }]);
         const bits = [];
         if (!j.salts.length) bits.push("We don't recognise this brand. Type the ingredients from the strip.");
