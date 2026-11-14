@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { supabaseWithClerk } from "@/lib/supabase";
 import type { DrugMatch, Form } from "@/lib/match";
@@ -23,10 +23,31 @@ const input = "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-
 
 export default function Home() {
   const [step, setStep] = useState<Step>("brand");
+  // Each step gets its own history entry (?step=confirm), so the browser Back button goes back a step instead of leaving the site.
+  const fromHistory = useRef(false);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      fromHistory.current = true;
+      setStep((e.state?.step as Step) ?? "brand");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  useEffect(() => {
+    if (fromHistory.current) {
+      fromHistory.current = false;
+      return;
+    }
+    const url = step === "brand" ? window.location.pathname : `?step=${step}`;
+    if (step === "brand") window.history.replaceState({ step }, "", url);
+    else window.history.pushState({ step }, "", url);
+  }, [step]);
   const [brand, setBrand] = useState("");
   const [salts, setSalts] = useState<Salt[]>([]);
   const [aiNote, setAiNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState("");
   const [current, setCurrent] = useState<Medicine | null>(null);
   const [cabinet, setCabinet] = useState<Medicine[]>([]);
@@ -77,6 +98,8 @@ export default function Home() {
     e.preventDefault();
     if (!brand.trim()) return;
     setBusy(true);
+    setSlow(false);
+    const slowTimer = setTimeout(() => setSlow(true), 3000);
     setError("");
     setAiNote("");
     try {
@@ -99,7 +122,9 @@ export default function Home() {
     } catch {
       setError("Network problem. Try again.");
     } finally {
+      clearTimeout(slowTimer);
       setBusy(false);
+      setSlow(false);
     }
   }
 
@@ -127,6 +152,7 @@ export default function Home() {
   }
 
   function reset() {
+    setJustSaved(false);
     setStep("brand");
     setBrand("");
     setSalts([]);
@@ -149,6 +175,7 @@ export default function Home() {
           <label htmlFor="brand" className="block font-medium">Medicine name on the strip</label>
           <input id="brand" className={input} placeholder="e.g. Combiflam, Dolo 650, Pan-D" value={brand} onChange={(e) => setBrand(e.target.value)} autoFocus />
           <button className={primary} disabled={busy || !brand.trim()}>{busy ? "Reading…" : "Next"}</button>
+          {slow && <p className="text-sm text-zinc-500">Still reading. Unusual names take a few more seconds.</p>}
         </form>
       )}
 
@@ -165,6 +192,9 @@ export default function Home() {
               <button type="button" aria-label="Remove ingredient" className="px-2 text-zinc-500 hover:text-red-600" onClick={() => setSalts(salts.filter((_, j) => j !== i))}>✕</button>
             </div>
           ))}
+          {salts.some((x) => x.name.trim() && !x.mg) && (
+            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">Add the mg from the back of the strip. The strength changes which US product matches.</p>
+          )}
           <label className="flex items-center gap-2 text-sm">
             Type
             <select className="rounded border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1" value={salts[0]?.form ?? "oral"} onChange={(e) => setSalts(salts.map((x) => ({ ...x, form: e.target.value as Form })))}>
@@ -175,7 +205,7 @@ export default function Home() {
             </select>
           </label>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={ghost} onClick={() => setSalts([...salts, { name: "", form: salts[0]?.form ?? "oral" }])}>+ Add ingredient</button>
+            <button type="button" className={ghost} onClick={() => setSalts([...salts, { name: "", form: salts[0]?.form ?? "oral" }])}>+ Add another ingredient from the strip</button>
             <button type="button" className={primary} onClick={lookUp} disabled={busy}>{busy ? "Checking US sources…" : "These are right, find US names"}</button>
           </div>
           <button type="button" className="text-sm text-zinc-500 underline" onClick={reset}>Start over</button>
@@ -185,13 +215,30 @@ export default function Home() {
       {step === "result" && current && (
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">{current.brand} in the US</h2>
+          {current.matches.length > 1 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              <b>This is a combination medicine.</b> Don&apos;t buy the parts separately and take them together on your own.
+              {current.matches.every((m) => m.status !== "not_sold") && (
+                <> At the pharmacy, ask for the combined product: <b>{current.matches.map((m) => m.usName ?? m.query).join("-")}{current.matches.every((m) => m.strengthMg) ? ` ${current.matches.map((m) => m.strengthMg).join("/")} mg` : ""}</b>.</>
+              )}
+              {current.matches.some((m) => m.status === "not_sold") && <> One part isn&apos;t sold in the US, so there is no exact US version. Ask a pharmacist what to use instead.</>}
+            </div>
+          )}
+          {current.matches.some((m) => m.brands.some((b) => b.toLowerCase() === current.brand.split(/[\s-]/)[0].toLowerCase())) && (
+            <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+              <b>Same name, maybe a different medicine.</b> &ldquo;{current.brand.split(/[\s-]/)[0]}&rdquo; is also a US brand, but the US product can contain different ingredients. Match by the ingredients above, not the box name.
+            </div>
+          )}
           {current.matches.map((m, i) => (
             <Card key={i} m={m} onSuggest={(name) => applySuggestion(name, m.query)} />
           ))}
           <p className="text-xs text-zinc-500">From RxNorm (NLM) and openFDA listings. Not medical advice: confirm with a pharmacist before taking anything.</p>
           <div className="flex flex-wrap gap-2">
             {!cabinet.some((c) => c.id === current.id) && (
-              <button className={primary} onClick={() => saveCabinet([...cabinet, current])}>Save to my cabinet</button>
+              <button className={primary} onClick={() => { saveCabinet([...cabinet, current]); setJustSaved(true); }}>Save to my cabinet</button>
+            )}
+            {justSaved && cabinet.some((c) => c.id === current.id) && (
+              <p role="status" className="self-center text-sm text-emerald-700 dark:text-emerald-400">✓ Saved{isSignedIn ? " to your account" : " on this device. Sign in to keep it on any device"}.</p>
             )}
             <button className={ghost} onClick={reset}>Check another medicine</button>
           </div>

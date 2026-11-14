@@ -33,7 +33,7 @@ export default function RootLayout({
           <Show when="signed-out">
             <SignInButton mode="modal">
               <button className="rounded-lg border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">
-                Sign in to save your cabinet
+                Sign in to sync your cabinet
               </button>
             </SignInButton>
           </Show>
