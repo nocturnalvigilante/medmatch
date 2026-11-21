@@ -1,3 +1,5 @@
+import { rateLimited } from "@/lib/ratelimit";
+import { findBrand } from "@/lib/brands";
 // AI step: brand name → proposed salts + strengths. The user must confirm before any lookup.
 // The model only proposes ingredients; it never decides US equivalents.
 
@@ -17,12 +19,18 @@ Rules:
 Return JSON: {"brand": string, "salts": [{"name": string, "mg": number|null}], "strength_known": boolean, "confidence": "high"|"medium"|"low", "note": string}`;
 
 export async function POST(req: Request) {
+  // Rate limit: 15 reads per minute per IP (each read = 2 model calls).
+  if (rateLimited(req, "read", 15)) return Response.json({ error: "rate_limited", note: "Too many lookups in a minute. Wait a moment and try again." }, { status: 429 });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return Response.json({ error: "no_key", note: "AI reading is off. Type the ingredients from the strip." }, { status: 503 });
 
   const body = await req.json().catch(() => null);
   const brand = String(body?.brand ?? "").trim().slice(0, 80);
   if (!brand) return Response.json({ error: "Type a brand name." }, { status: 400 });
+
+  // Fast path (instructor feedback: reading felt slow): brands on our hand-checked list answer instantly, no AI call.
+  const known = findBrand(brand);
+  if (known) return Response.json({ brand: known.brand, salts: known.salts, strengthKnown: true, confidence: "high", source: "list", note: "" });
 
   type Parsed = { brand?: unknown; salts?: unknown; strength_known?: unknown; confidence?: unknown; note?: unknown };
   async function ask(model: string, thinking: "low" | "high" = "low"): Promise<Parsed | null> {
@@ -31,11 +39,15 @@ export async function POST(req: Request) {
       headers: { "content-type": "application/json", "x-goog-api-key": key! },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: `${PROMPT}\n\nInput: ${JSON.stringify(brand)}` }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: thinking } },
+        // Token cap: the answer is a short JSON object; 8192 leaves room for thinking (2048 cut off answers in testing) but stops runaway output.
+        generationConfig: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: thinking } },
       }),
       signal: AbortSignal.timeout(model === FALLBACK ? 20000 : 8000),
     }).catch(() => undefined); // timeout / network
-    if (!res?.ok) return null;
+    if (!res?.ok) {
+      console.error(`gemini ${model}/${thinking}: ${res ? res.status : "timeout/network"}`); // server log only, no key
+      return null;
+    }
     try {
       const j = await res.json();
       return JSON.parse(j.candidates?.[0]?.content?.parts?.[0]?.text ?? "");

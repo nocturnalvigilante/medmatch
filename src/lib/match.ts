@@ -45,7 +45,25 @@ export type DrugMatch = {
   usStrengths: string[]; // e.g. ["81 MG Oral Tablet", ...]
   sameStrengthInUS?: boolean;
   note?: string;
+  soldAsForms?: Form[]; // not sold in the form asked for, but sold in these (e.g. acetaminophen: not inhaled, but oral)
+  alternatives?: { name: string; brand?: string; why: string }[]; // same drug family, OTC in the US; "ask a pharmacist"
 };
+
+// Instructor feedback: "not sold in the US" was a dead end. For drugs the US doesn't sell (or sells only on prescription),
+// name an over-the-counter medicine from the same drug family, always with "ask a pharmacist if it's right for you".
+const NSAID = "Same drug family (NSAID pain reliever), sold over the counter";
+const PPI = "Same drug family (acid reducer, PPI), sold over the counter";
+const ALTERNATIVES: Record<string, { name: string; brand?: string; why: string }[]> = {
+  aceclofenac: [{ name: "ibuprofen", brand: "Advil", why: NSAID }, { name: "naproxen", brand: "Aleve", why: NSAID }],
+  nimesulide: [{ name: "ibuprofen", brand: "Advil", why: NSAID }, { name: "naproxen", brand: "Aleve", why: NSAID }],
+  propyphenazone: [{ name: "acetaminophen", brand: "Tylenol", why: "Also a pain and fever reliever, sold over the counter" }],
+  pheniramine: [{ name: "chlorpheniramine", brand: "Chlor-Trimeton", why: "Same drug family (older antihistamine, causes drowsiness), sold over the counter" }],
+  ranitidine: [{ name: "famotidine", brand: "Pepcid", why: "Same drug family (H2 acid reducer), sold over the counter" }],
+  pantoprazole: [{ name: "omeprazole", brand: "Prilosec", why: PPI }, { name: "esomeprazole", brand: "Nexium", why: PPI }],
+  rabeprazole: [{ name: "omeprazole", brand: "Prilosec", why: PPI }, { name: "esomeprazole", brand: "Nexium", why: PPI }],
+};
+
+const FORM_WORDS: Record<Form, string> = { oral: "a tablet, capsule or syrup", inhaled: "an inhaler", topical: "a cream or gel", eye: "eye drops", any: "" };
 
 // Shelf brands people actually see. Shown first ONLY if RxNorm also lists them.
 const COMMON_BRANDS: Record<string, string[]> = {
@@ -93,7 +111,8 @@ class NotFound extends Error {}
 
 async function getJSON(url: string): Promise<J> {
   if (cache.has(url)) return cache.get(url);
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  // Speed (instructor feedback: 1-2 min waits): Next's data cache keeps RxNorm/openFDA answers for a day across requests and instances.
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000), next: { revalidate: 86400 } });
   if (res.status === 404) throw new NotFound(url);
   if (!res.ok) throw new Error(String(res.status)); // never put the URL (may hold api_key) in an error
   const json = await res.json();
@@ -146,21 +165,30 @@ async function fda(ids: string[]): Promise<{ otc: number; rx: number; brandCount
     rx = 0;
   const brandCounts = new Map<string, number>();
   const key = process.env.OPENFDA_API_KEY ? `&api_key=${process.env.OPENFDA_API_KEY}` : "";
-  for (let i = 0; i < ids.length; i += 50) {
-    const q = `openfda.rxcui:(${ids.slice(i, i + 50).join("+OR+")})`;
-    try {
-      const j = await getJSON(`${OPENFDA}?search=${q}&count=product_type.exact${key}`);
-      for (const t of j.results ?? []) {
-        if (t.term === "HUMAN OTC DRUG") otc += t.count;
-        if (t.term === "HUMAN PRESCRIPTION DRUG") rx += t.count;
-      }
-      const b = await getJSON(`${OPENFDA}?search=${q}&count=brand_name.exact&limit=200${key}`);
-      for (const t of b.results ?? []) {
-        const k = String(t.term).toLowerCase();
-        brandCounts.set(k, (brandCounts.get(k) ?? 0) + t.count);
-      }
-    } catch (e) {
-      if (!(e instanceof NotFound)) throw e; // 404 = no listings; anything else = unknown
+  const none = { results: [] };
+  const soft = (e: unknown) => {
+    if (e instanceof NotFound) return none; // 404 = no listings; anything else = unknown
+    throw e;
+  };
+  // All chunks and both counts in parallel (was one request after another).
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 50) chunks.push(`openfda.rxcui:(${ids.slice(i, i + 50).join("+OR+")})`);
+  const answers = await Promise.all(
+    chunks.map((q) =>
+      Promise.all([
+        getJSON(`${OPENFDA}?search=${q}&count=product_type.exact${key}`).catch(soft),
+        getJSON(`${OPENFDA}?search=${q}&count=brand_name.exact&limit=200${key}`).catch(soft),
+      ]),
+    ),
+  );
+  for (const [j, b] of answers) {
+    for (const t of j.results ?? []) {
+      if (t.term === "HUMAN OTC DRUG") otc += t.count;
+      if (t.term === "HUMAN PRESCRIPTION DRUG") rx += t.count;
+    }
+    for (const t of b.results ?? []) {
+      const k = String(t.term).toLowerCase();
+      brandCounts.set(k, (brandCounts.get(k) ?? 0) + t.count);
     }
   }
   return { otc, rx, brandCounts };
@@ -211,9 +239,11 @@ export async function matchDrug(query: string, strengthMg?: number, form: Form =
     if (!ing) return { ...base, note: "Couldn't resolve to a single ingredient. Enter each salt separately." };
     const matched = { ...base, result: "matched" as const, usName: ing.label, rxcui: ing.rxcui };
 
-    if (WITHDRAWN[ing.name]) return { ...matched, status: "not_sold", note: WITHDRAWN[ing.name] };
+    const alternatives = ALTERNATIVES[ing.name];
+    if (WITHDRAWN[ing.name]) return { ...matched, status: "not_sold", note: WITHDRAWN[ing.name], alternatives };
 
-    const all = (await products(ing.name)).filter((p) => FORM_RE[form].test(p.name));
+    const everything = await products(ing.name);
+    const all = everything.filter((p) => FORM_RE[form].test(p.name));
     const single = all.filter((p) => !p.name.includes(" / "));
     const combinationOnly = single.length === 0 && all.length > 0;
     const pool = combinationOnly ? all : single;
@@ -221,8 +251,26 @@ export async function matchDrug(query: string, strengthMg?: number, form: Form =
 
     const status: SaleStatus = otc > 0 ? "otc" : rx > 0 ? "rx" : "not_sold";
     if (status === "not_sold") {
-      const where = form === "any" ? "" : ` as ${form === "oral" ? "a tablet/capsule/syrup" : form}`;
-      return { ...matched, status, note: `Not sold in the US${where}. There is no US box for this. Ask a pharmacist or doctor.` };
+      // Sold in another form? Then it's not a dead end, just the wrong type (e.g. acetaminophen picked as "inhaler").
+      const others = (["oral", "inhaled", "topical", "eye"] as Form[]).filter((f) => f !== form);
+      const soldAsForms: Form[] = [];
+      await Promise.all(
+        others.map(async (f) => {
+          const ids = everything.filter((p) => FORM_RE[f].test(p.name)).map((p) => p.rxcui);
+          if (!ids.length) return;
+          const r = await fda(ids);
+          if (r.otc + r.rx > 0) soldAsForms.push(f);
+        }),
+      );
+      if (soldAsForms.length) {
+        return { ...matched, status, soldAsForms, note: `${ing.label[0].toUpperCase()}${ing.label.slice(1)} is sold in the US, but not as ${FORM_WORDS[form]}. It is sold as ${soldAsForms.map((f) => FORM_WORDS[f]).join(" or ")}.` };
+      }
+      return {
+        ...matched,
+        status,
+        alternatives,
+        note: `We found ${query} in the drug database, so it's not a spelling mistake. The US just doesn't sell any medicine with ${ing.label} in it.`,
+      };
     }
     const usStrengths = [...new Set(single.filter((p) => p.tty === "SCD").map((p) => p.name.replace(/^.*?(?=\d)/, "")))].sort();
     // RxNorm keeps concepts nobody sells (e.g. aspirin 75 MG). Count a strength only if openFDA lists it.
@@ -242,10 +290,74 @@ export async function matchDrug(query: string, strengthMg?: number, form: Form =
       brands: rankBrands([ing.name, ing.label], pool, brandCounts),
       usStrengths,
       sameStrengthInUS,
+      alternatives: status === "rx" ? alternatives : undefined,
       note: combinationOnly ? "In the US this is only sold mixed with other drugs." : undefined,
     };
   } catch (e) {
     console.error("match lookup failed:", (e as Error).message);
     return { ...base, result: "error", status: "unknown", note: "Lookup failed. Try again; we won't guess." };
+  }
+}
+
+// ---------- Tools the AI can call (v2, issue #6). Each returns only facts from RxNorm / openFDA. ----------
+
+async function usIngredient(name: string): Promise<string | undefined> {
+  const q = name.trim().toLowerCase();
+  const id = (await findRxcui(q)) ?? (SALT_SUFFIX.test(q) ? await findRxcui(q.replace(SALT_SUFFIX, "")) : undefined);
+  if (!id) return undefined;
+  return (await toIngredient(id))?.name;
+}
+
+const brandOf = (p: Product) => (p.tty === "SBD" ? p.name.match(/\[(.+)\]$/)?.[1]?.trim() : undefined);
+
+// Is there one US product that contains exactly these ingredients? (e.g. amoxicillin + clavulanate → Augmentin)
+export async function findCombination(names: string[], mgs: (number | undefined)[] = []) {
+  try {
+    const us = await Promise.all(names.map(usIngredient));
+    if (us.some((u) => !u)) return { found: false, reason: `No US ingredient for: ${names.filter((_, i) => !us[i]).join(", ")}` };
+    const ings = us as string[];
+    const j = await getJSON(`${RXNAV}/drugs.json?name=${enc([...ings].sort().join(" / "))}`); // RxNorm names combos alphabetically
+    const all: Product[] = (j.drugGroup?.conceptGroup ?? [])
+      .filter((g: J) => g.tty === "SCD" || g.tty === "SBD")
+      .flatMap((g: J) => (g.conceptProperties ?? []).map((p: J) => ({ rxcui: p.rxcui, name: p.name, tty: g.tty })))
+      .filter((p: Product) => FORM_RE.oral.test(p.name) && p.name.split(" / ").length === ings.length && ings.every((i) => p.name.toLowerCase().includes(i)));
+    if (!all.length) return { found: false, usIngredients: ings, reason: "The US has no single product with exactly these ingredients." };
+    const { otc, rx, brandCounts } = await fda(all.map((p) => p.rxcui));
+    if (otc + rx === 0) return { found: false, usIngredients: ings, reason: "Combination exists in RxNorm but no human US listing (not sold)." };
+    // Same strength as the Indian product? Check each ingredient's mg appears in one listed product.
+    const want = ings.map((ing, i) => (mgs[i] ? `${ing} ${mgs[i]} MG` : undefined));
+    const match = want.every((w) => !w) ? undefined : all.find((p) => p.tty === "SCD" && want.every((w) => !w || p.name.toLowerCase().includes(w.toLowerCase())));
+    const mf = match ? await fda([match.rxcui]) : undefined;
+    const matchListed = !!mf && mf.otc + mf.rx > 0;
+    return {
+      found: true,
+      usIngredients: ings,
+      status: otc > 0 ? "otc" : "rx",
+      brands: rankBrands(ings, all, brandCounts),
+      sameStrengthInUS: want.every((w) => !w) ? undefined : matchListed,
+      sameStrengthProduct: matchListed ? match!.name : undefined,
+    };
+  } catch (e) {
+    console.error("findCombination failed:", (e as Error).message);
+    return { found: false, reason: "Lookup failed; don't guess." };
+  }
+}
+
+// Which US products have this ingredient at this strength, and are they actually listed? (e.g. acetaminophen 650 → Tylenol 8 HR)
+export async function productsAtStrength(name: string, mg: number) {
+  try {
+    const ing = await usIngredient(name);
+    if (!ing) return { found: false, reason: "No US ingredient for this name." };
+    const re = new RegExp(`(^|\\s)${mg} MG\\b`);
+    const cands = (await products(ing)).filter((p) => FORM_RE.oral.test(p.name) && !p.name.includes(" / ") && re.test(p.name)).slice(0, 12);
+    // In parallel (was 12 lookups one after another, the slowest part of the AI summary).
+    const checked = await Promise.all(cands.map(async (p) => ({ p, f: await fda([p.rxcui]) })));
+    const listed = checked
+      .filter(({ f }) => f.otc + f.rx > 0)
+      .map(({ p, f }) => ({ product: p.name, brand: brandOf(p), status: f.otc > 0 ? "otc" : "rx", extendedRelease: /Extended Release|\b\d+ HR\b/i.test(p.name) }));
+    return listed.length ? { found: true, usIngredient: ing, products: listed } : { found: false, usIngredient: ing, reason: `No listed US oral product at ${mg} mg.` };
+  } catch (e) {
+    console.error("productsAtStrength failed:", (e as Error).message);
+    return { found: false, reason: "Lookup failed; don't guess." };
   }
 }
