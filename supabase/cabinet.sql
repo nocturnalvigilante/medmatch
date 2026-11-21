@@ -15,3 +15,8 @@ drop policy if exists "own rows" on cabinet;
 create policy "own rows" on cabinet for all to authenticated
   using (user_id = (auth.jwt()->>'sub'))
   with check (user_id = (auth.jwt()->>'sub'));
+
+-- v2 security pass: explicit grants. Signed-in users get only the verbs the app uses; anon gets nothing.
+revoke all on table cabinet from anon;
+revoke all on table cabinet from authenticated;
+grant select, insert, delete on table cabinet to authenticated;
