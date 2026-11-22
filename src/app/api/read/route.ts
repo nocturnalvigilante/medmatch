@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   if (!brand) return Response.json({ error: "Type a brand name." }, { status: 400 });
 
   // Fast path (instructor feedback: reading felt slow): brands on our hand-checked list answer instantly, no AI call.
-  const known = findBrand(brand);
+  const known = body?.skipList === true && process.env.NODE_ENV !== "production" ? undefined : findBrand(brand); // evals pass skipList to measure the AI itself
   if (known) return Response.json({ brand: known.brand, salts: known.salts, strengthKnown: true, confidence: "high", source: "list", note: "" });
 
   type Parsed = { brand?: unknown; salts?: unknown; strength_known?: unknown; confidence?: unknown; note?: unknown };
@@ -79,11 +79,21 @@ export async function POST(req: Request) {
   // AI eval: Drotin (40 mg) came back as 80 mg. When the strength isn't in the name, don't prefill a number;
   // the user types the mg from the strip instead of trusting a guessed dose.
   const strengthKnown = parsed.strength_known !== false;
+  const salts = cleanSalts(parsed);
+  // v2 eval (50 made-up brands): the AI invented ingredients for 33, and the two-answer check caught only 23.
+  // Names like "Torvalin 10" get the drug they sound like (atorvastatin) at high confidence, both times.
+  // So a brand that isn't on our checked list is never trusted on the AI's word: the user must confirm against the strip.
+  // Exception: the input is itself an ingredient name ("paracetamol"), where there is no brand to invent.
+  const n = (x: string) => x.toLowerCase().replace(/[^a-z]/g, "");
+  const isIngredient = salts.length === 1 && n(salts[0].name).startsWith(n(brand).slice(0, 6)) && n(brand).length >= 5;
+  const aiConfidence = ["high", "medium", "low"].includes(String(parsed.confidence)) ? String(parsed.confidence) : "low";
+  const confidence = salts.length && !isIngredient && aiConfidence === "high" ? "unlisted" : aiConfidence;
   return Response.json({
-    brand: String(parsed.brand ?? brand),
-    salts: cleanSalts(parsed).map((s) => (strengthKnown ? s : { name: s.name })),
+    brand: String(parsed.brand ?? brand).slice(0, 80),
+    salts: salts.map((s) => (strengthKnown ? s : { name: s.name })),
     strengthKnown,
-    confidence: ["high", "medium", "low"].includes(String(parsed.confidence)) ? parsed.confidence : "low",
-    note: String(parsed.note ?? ""),
+    confidence,
+    aiConfidence,
+    note: String(parsed.note ?? "").slice(0, 300),
   });
 }

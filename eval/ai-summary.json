@@ -1,0 +1,30 @@
+{
+  "real": {
+    "n": 30,
+    "ok": 28,
+    "strengthChecked": 19,
+    "strengthRight": 19,
+    "medianSeconds": 2.622
+  },
+  "typo": {
+    "n": 8,
+    "ok": 8,
+    "strengthChecked": 0,
+    "strengthRight": 0,
+    "medianSeconds": 2.583
+  },
+  "fake": {
+    "n": 50,
+    "ok": 17,
+    "strengthChecked": 0,
+    "strengthRight": 0,
+    "medianSeconds": 3.225
+  },
+  "fakeInvented": 33,
+  "fakeInventedFlagged": 23,
+  "realFlagged": 3,
+  "ranAt": "2026-11-22T00:36:20.206Z",
+  "fakeInventedFinal": 30,
+  "fakeInventedFlaggedFinal": 30,
+  "finalRanAt": "2026-11-22T00:43:28.510Z"
+}

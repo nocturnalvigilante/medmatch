@@ -20,7 +20,16 @@ const TYPOS: { input: string; salts: string[] }[] = [
 ];
 
 // Brands that don't exist. The right answer is "I don't know" (no salts), never a guess.
-const FAKE = ["Zorvanix 20", "Gastroaid", "Pelmorin 500", "Duraflux", "Kintavol DS", "Ostremab", "Fenzocil 250", "Nuvadrine"];
+// v2: grown from 8 to 50, as the proposal promised (the "don't know vs guess" rate).
+const FAKE = [
+  "Zorvanix 20", "Gastroaid", "Pelmorin 500", "Duraflux", "Kintavol DS", "Ostremab", "Fenzocil 250", "Nuvadrine",
+  "Trelvix 40", "Quorazine", "Benflomet 500", "Zylocard Plus", "Pranvex D", "Movicure SR", "Calvoxin 625", "Dextrafen",
+  "Orbilax", "Feluzide 10", "Nexoflam", "Sitavera M", "Zentrocil", "Clarivex LS", "Hepazor 300", "Lumicort",
+  "Varnimox", "Toxinol DS", "Ambrivent", "Glimora 2", "Rexoplaz", "Cardivan AM", "Pyrozest", "Ulcivon 20",
+  "Mentrax", "Axolide", "Sulvoprin", "Fluvenda 150", "Kelmorin", "Ondivex MD", "Bravocet", "Plexicur",
+  "Torvalin 10", "Nimuflex", "Desvoral", "Amlozap 5", "Coldivex", "Zinfacet", "Rabiquor", "Metlavin",
+  "Spasmorid", "Livogard 100",
+];
 
 // Same drug, different spelling (Indian INN vs US vs older BP names).
 const SYN: Record<string, string> = { acetaminophen: "paracetamol", albuterol: "salbutamol", furosemide: "frusemide", glyburide: "glibenclamide", amoxycillin: "amoxicillin", chlorphenamine: "chlorpheniramine", levothyroxine: "thyroxine" };
@@ -37,7 +46,7 @@ const same = (a: string, b: string) => {
 
 async function read(brand: string) {
   const t = Date.now();
-  const res = await fetch(`${BASE}/api/read`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ brand }) });
+  const res = await fetch(`${BASE}/api/read`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ brand, skipList: true }) });
   const j = await res.json().catch(() => ({}));
   return { ok: res.ok, ms: Date.now() - t, salts: (j.salts ?? []) as Salt[], confidence: String(j.confidence ?? ""), note: String(j.note ?? j.error ?? "") };
 }
@@ -89,4 +98,5 @@ for (const [g, t] of Object.entries(tally)) {
 }
 console.log(`fake  invented ingredients: ${guesses} · shown with the red "AI isn't sure" box: ${guessesFlagged}/${guesses}`);
 console.log(`real/typo brands wrongly shown the "not sure" box: ${realFlagged}`);
-console.log("wrote eval/ai-results.csv");
+writeFileSync("eval/ai-summary.json", JSON.stringify({ ...Object.fromEntries(Object.entries(tally).map(([g, t]) => [g, { n: t.n, ok: t.ok, strengthChecked: t.mgN, strengthRight: t.mgOk, medianSeconds: med(t.ms) }])), fakeInvented: guesses, fakeInventedFlagged: guessesFlagged, realFlagged, ranAt: new Date().toISOString() }, null, 2) + "\n");
+console.log("wrote eval/ai-results.csv and eval/ai-summary.json");
