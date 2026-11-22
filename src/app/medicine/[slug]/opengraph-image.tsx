@@ -1,6 +1,6 @@
 // Share card for WhatsApp/iMessage previews of a brand page.
 import { ImageResponse } from "next/og";
-import { brandBySlug } from "@/lib/summary";
+import { brandBySlug, describe } from "@/lib/summary";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -9,7 +9,7 @@ export const alt = "MedMatch: Indian medicine in the USA";
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const b = brandBySlug((await params).slug);
   const name = b?.brand ?? "Your medicine";
-  const ings = b ? b.salts.map((s) => `${s.name} ${s.mg} mg`).join(" + ") : "";
+  const ings = b ? describe(b) : "";
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 72, background: "linear-gradient(135deg,#0d9488,#065f46)", color: "white", fontFamily: "sans-serif" }}>

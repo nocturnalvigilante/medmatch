@@ -3,8 +3,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { brandBySlug, relatedBrands, slugOf, summarize } from "@/lib/summary";
+import { brandBySlug, describe, relatedBrands, summarize } from "@/lib/summary";
 import { MedicineActions } from "@/components/MedicineActions";
+import { Feedback } from "@/components/Feedback";
 
 // Rendered per request (the layout reads the Clerk session); the RxNorm/openFDA answers underneath are cached for a day.
 
@@ -20,10 +21,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const b = brandBySlug((await params).slug);
   if (!b) return {};
   const ings = b.salts.map((s) => s.name).join(" + ");
+  const canonical = `/medicine/${b.slug}`;
   return {
     title: `${b.brand} in the USA: US equivalent and what to ask for | MedMatch`,
     description: `${b.brand} (${ings}) from India: its US name, whether you need a prescription, and which US brands to look for. Checked against NIH RxNorm and FDA listings.`,
-    alternates: { canonical: `/medicine/${slugOf(b.brand)}` },
+    alternates: { canonical },
     openGraph: { title: `${b.brand} in the USA`, description: `What ${b.brand} is called at a US pharmacy.`, type: "article" },
   };
 }
@@ -33,7 +35,7 @@ export default async function MedicinePage({ params }: { params: Promise<{ slug:
   if (!brand) notFound();
   const s = await summarize(brand);
   const checked = new Date().toISOString().slice(0, 10);
-  const ings = brand.salts.map((x) => `${x.name} ${x.mg} mg`).join(" + ");
+  const ings = describe(brand);
   const usNames = s.matches.map((m) => m.usName ?? m.query).join(" + ");
   const needsRx = s.matches.some((m) => m.status === "rx");
   const notSold = s.matches.some((m) => m.status === "not_sold");
@@ -106,6 +108,10 @@ export default async function MedicinePage({ params }: { params: Promise<{ slug:
         </div>
       </section>
 
+      <div className="mt-4">
+        <Feedback brand={brand.brand} source={`page-${brand.source}`} ingredients={describe(brand)} />
+      </div>
+
       <section className="mt-8">
         <h2 className="text-lg font-semibold">Questions people ask</h2>
         <dl className="mt-2 space-y-4">
@@ -123,7 +129,7 @@ export default async function MedicinePage({ params }: { params: Promise<{ slug:
           <h2 className="text-lg font-semibold">Similar Indian medicines</h2>
           <div className="mt-2 flex flex-wrap gap-2">
             {relatedBrands(brand).map((r) => (
-              <Link key={r.brand} href={`/medicine/${slugOf(r.brand)}`} className="rounded-full border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">{r.brand}</Link>
+              <Link key={r.slug} href={`/medicine/${r.slug}`} className="rounded-full border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">{r.brand}</Link>
             ))}
           </div>
         </section>
@@ -136,7 +142,7 @@ export default async function MedicinePage({ params }: { params: Promise<{ slug:
       </section>
 
       <footer className="mt-8 border-t border-zinc-200 pt-4 text-xs text-zinc-500 dark:border-zinc-800">
-        <p>Sources: <a className="underline" href="https://www.nlm.nih.gov/research/umls/rxnorm/" rel="noopener">RxNorm (U.S. National Library of Medicine)</a> and <a className="underline" href="https://open.fda.gov/apis/drug/ndc/" rel="noopener">openFDA drug listings</a>. Ingredients from our hand-checked list of Indian brands. Last checked {checked}.</p>
+        <p>Sources: <a className="underline" href="https://www.nlm.nih.gov/research/umls/rxnorm/" rel="noopener">RxNorm (U.S. National Library of Medicine)</a> and <a className="underline" href="https://open.fda.gov/apis/drug/ndc/" rel="noopener">openFDA drug listings</a>. {brand.source === "checked" ? "Ingredients from our hand-checked list of Indian brands." : <>Ingredients from the <a className="underline" href="https://github.com/junioralive/Indian-Medicine-Dataset" rel="noopener">Indian Medicine Dataset</a>{brand.maker ? ` (maker: ${brand.maker})` : ""}; check them against your strip.</>} Last checked {checked}.</p>
         <p className="mt-1">MedMatch finds the US name for the same ingredient. It is not medical advice and doesn&apos;t tell you what dose to take. Always confirm with a US pharmacist.</p>
       </footer>
     </main>

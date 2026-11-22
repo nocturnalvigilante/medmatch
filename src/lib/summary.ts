@@ -1,13 +1,26 @@
 // Deterministic "what to ask for" for a known brand, built only from RxNorm/openFDA facts (no AI).
 // Used by the SEO brand pages (/medicine/[slug]) and the pharmacist card.
-import { matchDrug, findCombination, type DrugMatch } from "@/lib/match";
-import { BRANDS, slugOf, type KnownBrand } from "@/lib/brands";
+import { matchDrug, findCombination, usBrandIngredients, type DrugMatch, type Form } from "@/lib/match";
+import { BRANDS, slugOf } from "@/lib/brands";
+import { bySlug, sameIngredients } from "@/lib/india";
 
 export { slugOf };
-export const brandBySlug = (slug: string) => BRANDS.find((b) => slugOf(b.brand) === slug);
+
+// A medicine page can come from our hand-checked list (verified) or the 209k-item Indian dataset.
+export type Med = { brand: string; slug: string; salts: { name: string; mg?: number; strength?: string }[]; form: Form; source: "checked" | "dataset"; complete: boolean; maker?: string };
+
+export function brandBySlug(slug: string): Med | undefined {
+  const k = BRANDS.find((b) => slugOf(b.brand) === slug);
+  if (k) return { brand: k.brand, slug, salts: k.salts.map((s) => ({ ...s, strength: `${s.mg}mg` })), form: "oral", source: "checked", complete: true };
+  const d = bySlug(slug);
+  if (d) return { brand: d.name, slug, salts: d.salts, form: d.form, source: "dataset", complete: d.complete, maker: d.maker };
+  return undefined;
+}
+
+export const describe = (m: Med) => m.salts.map((s) => `${s.name}${s.strength ? ` ${s.strength}` : ""}`).join(" + ");
 
 export type BrandSummary = {
-  brand: KnownBrand;
+  brand: Med;
   matches: DrugMatch[];
   combo?: Awaited<ReturnType<typeof findCombination>>;
   askFor: string; // one line for the pharmacist
@@ -17,10 +30,10 @@ export type BrandSummary = {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export async function summarize(brand: KnownBrand): Promise<BrandSummary> {
-  const matches = await Promise.all(brand.salts.map((s) => matchDrug(s.name, s.mg, "oral")));
+export async function summarize(brand: Med): Promise<BrandSummary> {
+  const matches = await Promise.all(brand.salts.map((s) => matchDrug(s.name, s.mg, brand.form)));
   const multi = brand.salts.length > 1;
-  const combo = multi ? await findCombination(brand.salts.map((s) => s.name), brand.salts.map((s) => s.mg)) : undefined;
+  const combo = multi && brand.form === "oral" ? await findCombination(brand.salts.map((s) => s.name), brand.salts.map((s) => s.mg)) : undefined;
 
   const statuses = new Set(matches.map((m) => m.status));
   const status: BrandSummary["status"] = statuses.size === 1 ? [...statuses][0] : statuses.has("unknown") ? "unknown" : "mixed";
@@ -55,10 +68,29 @@ export async function summarize(brand: KnownBrand): Promise<BrandSummary> {
   if (matches.some((m) => m.usName === "acetaminophen"))
     warnings.push("Contains acetaminophen (paracetamol). Many US cold and flu products also contain it, so check labels to avoid taking a double dose.");
 
+  if (!brand.complete) warnings.push("Our source lists two ingredients for this medicine; some versions have a third. Check the back of your strip.");
+  const clash = await brandClash(brand.brand, brand.salts.map((x) => x.name));
+  if (clash) warnings.unshift(clash);
+
   return { brand, matches, combo, askFor, status, warnings };
 }
 
-export function relatedBrands(brand: KnownBrand, limit = 6) {
+// "Benadryl" in India is a 3-ingredient cough syrup; US Benadryl is diphenhydramine alone. Same box name, different medicine.
+export async function brandClash(brandName: string, indianSalts: string[]): Promise<string | undefined> {
+  const word = brandName.split(/[\s-]/)[0];
+  if (word.length < 4) return undefined;
+  const us = await usBrandIngredients(word);
+  if (!us.length) return undefined;
+  const norm = (x: string) => x.toLowerCase().replace(/amoxycillin/, "amoxicillin").replace(/paracetamol/, "acetaminophen").slice(0, 5);
+  const mine = indianSalts.map(norm).sort().join("+");
+  if (us.some((set) => set.map(norm).sort().join("+") === mine)) return undefined;
+  const usText = [...new Set(us.map((set) => set.join(" + ")))].slice(0, 2).join(", or ");
+  return `Same name, different medicine: In the US, ${word} means ${usText}. Ask for the ingredients, not the brand name.`;
+}
+
+export function relatedBrands(brand: Med, limit = 6): { brand: string; slug: string }[] {
   const mine = new Set(brand.salts.map((s) => s.name));
-  return BRANDS.filter((b) => b !== brand && b.salts.some((s) => mine.has(s.name))).slice(0, limit);
+  const checked = BRANDS.filter((b) => b.brand !== brand.brand && b.salts.some((s) => mine.has(s.name))).map((b) => ({ brand: b.brand, slug: slugOf(b.brand) }));
+  const fromData = sameIngredients({ name: brand.brand, salts: brand.salts.map((s) => ({ name: s.name, strength: s.strength ?? "" })), form: brand.form, maker: "", complete: true, rank: 0, slug: brand.slug }, limit).map((d) => ({ brand: d.name, slug: d.slug }));
+  return [...checked, ...fromData].slice(0, limit);
 }
