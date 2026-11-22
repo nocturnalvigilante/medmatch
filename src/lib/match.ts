@@ -300,6 +300,24 @@ export async function matchDrug(query: string, strengthMg?: number, form: Form =
   }
 }
 
+// Ingredient sets of US products sold under a brand word (e.g. "Benadryl" → [["diphenhydramine"], ...]). Only brands with US listings.
+export async function usBrandIngredients(word: string): Promise<string[][]> {
+  try {
+    const j = await getJSON(`${RXNAV}/drugs.json?name=${enc(word.toLowerCase())}`);
+    const sbd: Product[] = (j.drugGroup?.conceptGroup ?? [])
+      .filter((g: J) => g.tty === "SBD")
+      .flatMap((g: J) => (g.conceptProperties ?? []).map((p: J) => ({ rxcui: p.rxcui, name: p.name, tty: g.tty })))
+      .filter((p: Product) => brandOf(p)?.toLowerCase().split(/[\s-]/)[0] === word.toLowerCase());
+    if (!sbd.length) return [];
+    const { otc, rx } = await fda(sbd.slice(0, 50).map((p) => p.rxcui));
+    if (otc + rx === 0) return [];
+    const sets = sbd.map((p) => p.name.replace(/\s*\[.*\]$/, "").split(" / ").map((part) => part.replace(/\s+[\d.].*$/, "").trim().toLowerCase()));
+    return [...new Map(sets.map((s) => [s.join("+"), s])).values()].slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
 // ---------- Tools the AI can call (v2, issue #6). Each returns only facts from RxNorm / openFDA. ----------
 
 async function usIngredient(name: string): Promise<string | undefined> {
