@@ -1,5 +1,6 @@
 import { rateLimited } from "@/lib/ratelimit";
 import { findBrand } from "@/lib/brands";
+import { findVariants } from "@/lib/india";
 // AI step: brand name → proposed salts + strengths. The user must confirm before any lookup.
 // The model only proposes ingredients; it never decides US equivalents.
 
@@ -19,8 +20,8 @@ Rules:
 Return JSON: {"brand": string, "salts": [{"name": string, "mg": number|null}], "strength_known": boolean, "confidence": "high"|"medium"|"low", "note": string}`;
 
 export async function POST(req: Request) {
-  // Rate limit: 15 reads per minute per IP (each read = 2 model calls).
-  if (rateLimited(req, "read", 15)) return Response.json({ error: "rate_limited", note: "Too many lookups in a minute. Wait a moment and try again." }, { status: 429 });
+  // Cheap abuse guard for the free list lookups; the strict limit below protects the AI quota.
+  if (rateLimited(req, "read-all", 60)) return Response.json({ error: "rate_limited", note: "Too many lookups in a minute. Wait a moment and try again." }, { status: 429 });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return Response.json({ error: "no_key", note: "AI reading is off. Type the ingredients from the strip." }, { status: 503 });
 
@@ -31,6 +32,49 @@ export async function POST(req: Request) {
   // Fast path (instructor feedback: reading felt slow): brands on our hand-checked list answer instantly, no AI call.
   const known = body?.skipList === true && process.env.NODE_ENV !== "production" ? undefined : findBrand(brand); // evals pass skipList to measure the AI itself
   if (known) return Response.json({ brand: known.brand, salts: known.salts, strengthKnown: true, confidence: "high", source: "list", note: "" });
+
+  // Next: ~209k Indian medicines from a public dataset (agreed with our hand check 52/53). Still no AI call.
+  if (body?.skipList !== true || process.env.NODE_ENV === "production") {
+    let variants = findVariants(brand);
+    // "Asthalin inhaler", "Combiflam syrup": the user named the form, so keep only that form.
+    const said = /inhal|rotacap|respule/i.test(brand) ? "inhaled" : /syrup|suspension|tablet|capsule/i.test(brand) ? "oral" : /cream|gel|ointment/i.test(brand) ? "topical" : /eye/i.test(brand) ? "eye" : undefined;
+    const word = brand.toLowerCase().match(/\b(syrup|suspension|tablet|capsule|inhaler|rotacaps?|respules|cream|gel|ointment|drops?)\b/)?.[1];
+    if (said) {
+      const stem = word?.replace(/s$/, "");
+      if (!variants.some((v) => v.form === said && (!stem || v.name.toLowerCase().includes(stem)))) variants = findVariants(brand, true); // "Asthalin 100mcg Inhaler" has extra words
+      const byForm = variants.filter((v) => v.form === said);
+      const byWord = stem ? byForm.filter((v) => v.name.toLowerCase().includes(stem)) : [];
+      if (byWord.length) variants = byWord;
+      else if (byForm.length) variants = byForm;
+    }
+    const distinct = [...new Map(variants.map((v) => [`${v.form}|${v.salts.map((s) => s.name + s.strength).join("+")}`, v])).values()];
+    if (distinct.length === 1) {
+      const v = distinct[0];
+      return Response.json({
+        brand: v.name,
+        salts: v.salts.map((s) => ({ name: s.name, mg: s.mg, strength: s.strength })),
+        form: v.form,
+        strengthKnown: true,
+        confidence: v.complete ? "high" : "partial", // partial: the source lists only 2 ingredients; the strip may have more
+        source: "dataset",
+        note: "",
+      });
+    }
+    if (distinct.length > 1) {
+      // Several products share the name (tablet vs kids' syrup, different strengths): let the user pick the one on the strip.
+      return Response.json({
+        brand,
+        source: "dataset",
+        variants: distinct.slice(0, 8).map((v) => ({ name: v.name, form: v.form, complete: v.complete, salts: v.salts.map((s) => ({ name: s.name, mg: s.mg, strength: s.strength })) })),
+        salts: [],
+        confidence: "high",
+        note: "",
+      });
+    }
+  }
+
+  // Rate limit on the AI path: 15 per minute per IP (each read = 2 model calls).
+  if (rateLimited(req, "read", 15)) return Response.json({ error: "rate_limited", note: "Too many lookups in a minute. Wait a moment and try again." }, { status: 429 });
 
   type Parsed = { brand?: unknown; salts?: unknown; strength_known?: unknown; confidence?: unknown; note?: unknown };
   async function ask(model: string, thinking: "low" | "high" = "low"): Promise<Parsed | null> {
@@ -88,6 +132,7 @@ export async function POST(req: Request) {
   const isIngredient = salts.length === 1 && n(salts[0].name).startsWith(n(brand).slice(0, 6)) && n(brand).length >= 5;
   const aiConfidence = ["high", "medium", "low"].includes(String(parsed.confidence)) ? String(parsed.confidence) : "low";
   const confidence = salts.length && !isIngredient && aiConfidence === "high" ? "unlisted" : aiConfidence;
+  console.log(JSON.stringify({ evt: "read", source: "ai", confidence, disagree, salts: salts.length })); // monitoring: how often the AI path runs and is unsure
   return Response.json({
     brand: String(parsed.brand ?? brand).slice(0, 80),
     salts: salts.map((s) => (strengthKnown ? s : { name: s.name })),

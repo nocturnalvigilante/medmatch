@@ -1,0 +1,13 @@
+{
+  "brands": 30,
+  "right": 30,
+  "pickerShown": 5,
+  "askedToConfirm": 0,
+  "bySource": {
+    "list": 17,
+    "dataset": 8,
+    "dataset-picker": 5
+  },
+  "medianSeconds": 0.008,
+  "ranAt": "2026-11-22T01:01:24.164Z"
+}

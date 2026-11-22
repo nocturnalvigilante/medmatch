@@ -3,6 +3,7 @@
 // off the foil instead of recalling them from memory. The user still confirms before any US lookup.
 import { rateLimited } from "@/lib/ratelimit";
 import { findBrand } from "@/lib/brands";
+import { findVariants } from "@/lib/india";
 
 const MODEL = process.env.GEMINI_VISION_MODEL ?? "gemini-3.5-flash";
 const FALLBACK = "gemini-3.5-flash-lite";
@@ -77,7 +78,11 @@ export async function POST(req: Request) {
   let note = String(p.note ?? "").slice(0, 300);
 
   // Cross-check against our hand-checked list: if the photo's composition disagrees with what we know, don't trust either silently.
-  const known = findBrand(brand);
+  // Cross-check against our hand-checked list, then the 209k-item Indian list (only when the name picks out one product).
+  const listed = findBrand(brand);
+  const variants = listed ? [] : findVariants(brand);
+  const one = variants.length && new Set(variants.map((v) => v.salts.map((x) => x.name).sort().join("+"))).size === 1 ? variants[0] : undefined;
+  const known = listed ?? (one && one.complete ? { brand: one.name, salts: one.salts.map((x) => ({ name: x.name, mg: x.mg ?? 0 })) } : undefined);
   if (known && salts.length) {
     const key2 = (l: { name: string }[]) => l.map((s) => s.name.slice(0, 4)).sort().join("+");
     if (key2(known.salts) !== key2(salts)) {
@@ -88,9 +93,10 @@ export async function POST(req: Request) {
   // Brand visible but composition not: fall back to the known list (if we have it), clearly labelled.
   const fromList = !salts.length && !!known;
 
+  console.log(JSON.stringify({ evt: "photo", salts: salts.length, confidence, fromList, mismatch: confidence === "low" && !!known })); // monitoring
   return Response.json({
     brand: known?.brand ?? brand,
-    salts: fromList ? known!.salts : salts,
+    salts: fromList ? known!.salts.map((x) => ({ name: x.name, mg: x.mg || undefined })) : salts,
     compositionVisible: !!p.composition_visible && salts.length > 0,
     source: fromList ? "list" : "photo",
     confidence: fromList ? "high" : confidence,
