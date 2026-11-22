@@ -9,7 +9,8 @@ An independent review ran in a fresh agent session with read-only access. It rea
 | Supabase grant + RLS | RLS is on. The `using` and `with check` clauses both test `user_id = auth.jwt()->>'sub'`. `anon` has no grants; `authenticated` has only select, insert and delete. Checked live: an anonymous read gets "permission denied". |
 | Keys out of the repo | `.env*` and `ACCOUNTS.local.md` are gitignored. We searched the tracked files and the **full git history** for Google, Clerk and Supabase key patterns and found nothing. The Gemini key goes in a header, never a URL, and logs only print status codes. |
 | `.env` deny rule for coding agents | `.claude/settings.json` blocks Read and Edit of `.env*` and `cat .env*`. |
-| Rate limits | `/api/read` 15/min, `/api/advise` 6/min, `/api/photo` 10/min, `/api/match` 20/min, `/api/suggest` 120/min, per IP. |
+| Feedback | `/api/feedback` only inserts, through a table policy that allows insert and nothing else (no select for anon or authenticated). Text is length-capped, and the endpoint is limited to 10/min per IP. |
+| Rate limits | `/api/read` 15/min on the AI path (60/min for list lookups), `/api/advise` 6/min, `/api/photo` 10/min, `/api/match` 20/min, `/api/suggest` 120/min, per IP. |
 | Token caps | Every model call sets `maxOutputTokens` (read 8192, advise 4096, photo 4096). Input is capped at 80 characters per name, at most 6 ingredients, and photos at about 2 MB. |
 | Prompt injection / SSRF | User text is JSON-stringified into prompts, and tool arguments are cut to 80 characters and cast to numbers. Every upstream URL uses fixed hosts with `encodeURIComponent`, and the model never sees a key. AI output is rendered as React text, never HTML, and length-capped. |
 | Spending | Gemini uses a free-tier key with no billing account, so the most it can cost is $0. Vercel Hobby, Supabase Free and Clerk Free. |

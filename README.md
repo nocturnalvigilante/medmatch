@@ -18,7 +18,8 @@ Warnings:
 ## New in v2
 - **Photo of the strip:** the camera button reads the composition printed on the foil (Gemini vision), so ingredients come from the strip, not the model's memory.
 - **AI agent with tools** (`/api/advise`): Gemini calls RxNorm/openFDA lookups (`find_combination`, `products_at_strength`, `lookup_ingredient`) and writes "what to ask for" only from their results.
-- **Type-ahead** with typo tolerance, and an instant answer for 47 hand-checked Indian brands.
+- **209,000 Indian medicines** (public MIT dataset, see [`data/`](data/README.md)): type-ahead across all of them, an instant answer without AI, a "which one is on your strip?" picker, and automatic "same name, different medicine" warnings.
+- **"Was this right?"** feedback on every result, plus structured logs for monitoring.
 - **A page for each medicine** (`/medicine/dolo-650`, …), with an FAQ, structured data, a sitemap and share images, so people find it from Google searches like "Dolo 650 in USA".
 - **A card to show the pharmacist**, plus sharing to WhatsApp and family.
 - **Before you fly** (`/before-you-fly`): a packing checklist for students and parents.

@@ -6,6 +6,8 @@ import photo from "../../../eval/photo-summary.json";
 import tools from "../../../eval/tools-summary.json";
 import ai from "../../../eval/ai-summary.json";
 import match from "../../../eval/match-summary.json";
+import readSum from "../../../eval/read-summary.json";
+import dataset from "../../../eval/dataset-check.json";
 
 export const metadata: Metadata = {
   title: "How accurate is MedMatch? Our evals | MedMatch",
@@ -41,7 +43,7 @@ export default function Accuracy() {
         <h2 className="text-lg font-semibold">How a lookup works</h2>
         <ol className="mt-3 grid gap-3 sm:grid-cols-3">
           {[
-            ["1 · AI reads", "Gemini reads the name you typed, or the composition printed on a photo of the strip. It only proposes ingredients."],
+            ["1 · Find the medicine", "Your typed name is matched against 209,000 Indian medicines (and our hand-checked list). Only unknown names, and photos, go to the Gemini AI, which only proposes ingredients."],
             ["2 · You confirm", "You check the ingredients against the strip. If the AI isn't sure, you have to tick that you checked."],
             ["3 · US sources decide", "NIH RxNorm and FDA listings give the US name and OTC status. An AI agent then calls these as tools to write what to ask for."],
           ].map(([t, d]) => (
@@ -51,6 +53,16 @@ export default function Accuracy() {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold">Finding a typed medicine</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Tile big={`${readSum.right}/${readSum.brands}`} label="Right ingredients" detail={`Real Indian brands typed the way people type them. ${readSum.pickerShown} showed a “which one is on your strip?” choice that included the right one.`} />
+          <Tile big={`${(readSum.bySource as Record<string, number>).ai ?? 0}`} label="Needed the AI" detail={`All found in our hand-checked list or the 209,000-medicine list, in a median ${Math.round(readSum.medianSeconds * 1000)} ms.`} />
+          <Tile big={`${dataset.agree}/${dataset.found}`} label="List agrees with hand check" detail={`Where our hand-checked brands appear in the public Indian medicine list, the ingredients match. The one difference (${dataset.disagreements.join(", ")}) uses our hand check.`} />
+        </div>
+        <p className="mt-2 text-xs text-zinc-500">Source list: <a className="underline" href="https://github.com/junioralive/Indian-Medicine-Dataset">Indian Medicine Dataset</a> (MIT), {dataset.medicines.toLocaleString()} medicines still sold. Where it lists only two ingredients, you&apos;re asked to check the strip for a third.</p>
       </section>
 
       <section className="mt-10">
@@ -64,7 +76,8 @@ export default function Accuracy() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">Reading a typed brand name</h2>
+        <h2 className="text-lg font-semibold">When the AI has to read a name</h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">For names on neither list. Tested on the AI alone, with the lists switched off.</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <Tile big={`${real.ok}/${real.n}`} label="Real Indian brands" detail={`Ingredients right. Strength right ${real.strengthRight}/${real.strengthChecked} when given.`} />
           <Tile big={`${typo.ok}/${typo.n}`} label="Misspellings" detail="Real typos from testers, like “disprine” and “cefoximine”." />

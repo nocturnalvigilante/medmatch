@@ -4,12 +4,14 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { supabaseWithClerk } from "@/lib/supabase";
 import type { DrugMatch, Form } from "@/lib/match";
-import { findBrand, slugOf, suggest, suggestIngredient, type KnownBrand } from "@/lib/brands";
+import { baseKey, findBrand, slugOf, suggest, suggestIngredient, type KnownBrand } from "@/lib/brands";
 import { MedicineActions } from "@/components/MedicineActions";
+import { Feedback } from "@/components/Feedback";
 import Link from "next/link";
 
-type Salt = { name: string; mg?: number; form: Form };
-type Medicine = { id: string; brand: string; matches: DrugMatch[] };
+type Salt = { name: string; mg?: number; strength?: string; form: Form };
+type DatasetMed = { name: string; form: Form; complete: boolean; maker?: string; salts: { name: string; mg?: number; strength: string }[] };
+type Medicine = { id: string; brand: string; matches: DrugMatch[]; clash?: string };
 type Step = "brand" | "confirm" | "result";
 type Option = { key: string; label: string; detail?: string; onPick: () => void };
 
@@ -55,7 +57,10 @@ export default function Home() {
   // AI eval: made-up brands came back with invented ingredients at "medium" confidence; real brands came back "high".
   const [unsure, setUnsure] = useState(false);
   const [checkedStrip, setCheckedStrip] = useState(false);
-  const [unlisted, setUnlisted] = useState(false); // brand not on our checked list: AI answer may be a guess even when confident
+  // Why the user must tick "I checked my strip": the AI guessed, the brand isn't on any list, or the list may miss an ingredient.
+  const [checkReason, setCheckReason] = useState<"" | "unlisted" | "partial">("");
+  const [variants, setVariants] = useState<DatasetMed[]>([]);
+  const [source, setSource] = useState("typed"); // where the ingredients came from: checked list, dataset, AI or photo (for feedback)
   const [busy, setBusy] = useState<"" | "read" | "match">("");
   const [slow, setSlow] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -67,6 +72,7 @@ export default function Home() {
   const adviceReq = useRef(0);
   const [cabinet, setCabinet] = useState<Medicine[]>([]);
   const [remote, setRemote] = useState<string[]>([]);
+  const [remoteMeds, setRemoteMeds] = useState<DatasetMed[]>([]);
 
   // Signed out: cabinet lives in this browser. Signed in: it lives in Supabase (RLS = own rows only).
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -127,22 +133,32 @@ export default function Home() {
   // Type-ahead (instructor feedback): our checked list answers instantly; RxNorm spelling suggestions fill in when it has nothing.
   const local = useMemo(() => suggest(brand), [brand]);
   useEffect(() => {
-    setRemote([]);
     const q = brand.trim();
-    if (step !== "brand" || q.length < 4 || local.length >= 2) return;
+    if (step !== "brand" || q.length < 2) {
+      setRemote([]);
+      setRemoteMeds([]);
+      return;
+    }
+    let live = true;
     const t = setTimeout(async () => {
       try {
         const j = await (await fetch(`/api/suggest?q=${encodeURIComponent(q)}`)).json();
+        if (!live) return;
+        setRemoteMeds(j.meds ?? []);
         setRemote((j.names ?? []).filter((n: string) => n !== q.toLowerCase()));
       } catch {}
-    }, 300);
-    return () => clearTimeout(t);
-  }, [brand, step, local.length]);
+    }, 150);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [brand, step]);
 
   function startFresh() {
     setError("");
     setUnsure(false);
-    setUnlisted(false);
+    setCheckReason("");
+    setVariants([]);
     setCheckedStrip(false);
   }
 
@@ -151,6 +167,21 @@ export default function Home() {
     setBrand(b.brand);
     setSalts(b.salts.map((s) => ({ ...s, form: "oral" })));
     setAiNote("From our checked list of Indian brands. Still compare with the back of your strip.");
+    setSource("list");
+    setStep("confirm");
+  }
+
+  // A medicine picked from the ~209k-item Indian list (type-ahead or the "which one?" picker).
+  function pickDataset(m: DatasetMed) {
+    startFresh();
+    setBrand(m.name);
+    setSalts(m.salts.map((s) => ({ name: s.name, mg: s.mg, strength: s.strength, form: m.form === "any" ? "oral" : m.form })));
+    setAiNote("From a list of 209,000 Indian medicines. Check it matches the back of your strip.");
+    setSource("dataset");
+    if (!m.complete) {
+      setUnsure(true);
+      setCheckReason("partial");
+    }
     setStep("confirm");
   }
 
@@ -169,6 +200,9 @@ export default function Home() {
       detail: s.kind === "brand" ? s.detail : "ingredient",
       onPick: () => (s.brand ? pickKnown(s.brand) : pickIngredient(s.label)),
     })),
+    ...remoteMeds
+      .filter((m) => !local.some((l) => l.kind === "brand" && baseKey(l.label) === baseKey(m.name)))
+      .map((m) => ({ key: `d-${m.name}`, label: m.name, detail: m.salts.map((s) => `${s.name}${s.strength ? ` ${s.strength}` : ""}`).join(" + "), onPick: () => pickDataset(m) })),
     ...remote.filter((n) => !local.some((l) => l.label === n)).map((n) => ({ key: `r-${n}`, label: n, detail: "ingredient · did you mean?", onPick: () => pickIngredient(n) })),
   ];
 
@@ -197,6 +231,7 @@ export default function Home() {
         return setError(j.note || "We couldn't find a medicine name in that photo. Try the side with the name, in good light.");
       }
       setBrand(j.brand || "Your medicine");
+      setSource(j.source === "list" ? "list" : "photo");
       setSalts(j.salts.map((x: Salt) => ({ ...x, form: "oral" })));
       setUnsure(j.confidence !== "high");
       const bits = [j.source === "list" ? "Read the name from your photo; ingredients from our checked list." : "Read from your photo. Check every line against the strip."];
@@ -224,17 +259,28 @@ export default function Home() {
     try {
       const res = await fetch("/api/read", { method: "POST", body: JSON.stringify({ brand: name }) });
       const j = await res.json();
+      if (res.ok && j.variants?.length) {
+        setVariants(j.variants);
+        setSalts([]);
+        setStep("confirm");
+        return;
+      }
+      if (res.ok && j.source === "dataset") {
+        pickDataset({ name: j.brand, form: j.form ?? "oral", complete: j.confidence !== "partial", salts: j.salts });
+        return;
+      }
       if (!res.ok) {
         setSalts([{ name: "", form: "oral" }]);
         setAiNote(j.note ?? "Type the ingredients from the strip.");
       } else {
         if (j.salts.length && j.brand) setBrand(j.brand); // use the corrected spelling, e.g. "Combiflam"
+        setSource(j.source === "list" ? "list" : "ai");
         setSalts(j.salts.length ? j.salts.map((s: Salt) => ({ ...s, form: "oral" })) : [{ name: "", form: "oral" }]);
         const bits = [];
         if (!j.salts.length) bits.push(`We don't recognise “${name}”. Type the ingredients printed on the back of the strip.`);
         else if (j.source === "list") bits.push("From our checked list of Indian brands. Still compare with the back of your strip.");
         else if (j.confidence === "high") bits.push("Our AI read these. Check them against the back of your strip.");
-        setUnlisted(j.confidence === "unlisted");
+        if (j.confidence === "unlisted") setCheckReason("unlisted");
         setUnsure(j.salts.length > 0 && j.confidence !== "high");
         if (j.salts.length && !j.strengthKnown) bits.push("Strength wasn't in the name. Check the mg on the strip.");
         if (j.note) bits.push(j.note);
@@ -273,11 +319,11 @@ export default function Home() {
     setSlow(false);
     const slowTimer = setTimeout(() => setSlow(true), 4000);
     try {
-      const res = await fetch("/api/match", { method: "POST", body: JSON.stringify({ salts: clean }) });
+      const res = await fetch("/api/match", { method: "POST", body: JSON.stringify({ salts: clean, brand: brand.trim() }) });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
       setJustSaved(false);
-      setCurrent({ id: crypto.randomUUID(), brand: brand.trim(), matches: j.matches });
+      setCurrent({ id: crypto.randomUUID(), brand: brand.trim(), matches: j.matches, clash: j.clash });
       setStep("result");
       fetchAdvice(brand.trim(), clean);
     } catch (e) {
@@ -386,7 +432,7 @@ export default function Home() {
             <p className="text-sm font-medium uppercase tracking-wider text-teal-100">How it works</p>
             <ol className="mt-4 space-y-5">
               {[
-                ["Type the name on your strip", "Like Dolo 650 or Pan-D. Suggestions appear as you type, so spelling doesn't matter."],
+                ["Type the name or snap the strip", "Any of 209,000 Indian medicines. Suggestions appear as you type, so spelling doesn't matter."],
                 ["Check the ingredients", "We show what's inside. You compare it with the back of the strip."],
                 ["Get your US match", "The US name, whether you need a prescription, and what to ask the pharmacist for."],
               ].map(([t, d], i) => (
@@ -402,6 +448,14 @@ export default function Home() {
             <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm">
               <p className="font-medium">Example: Dolo 650 → <span className="underline decoration-teal-200/60">acetaminophen (Tylenol)</span></p>
               <p className="mt-1 text-teal-50/90">India says paracetamol; the US says acetaminophen. Same medicine, different name.</p>
+            </div>
+            <div className="mt-6 hidden items-center gap-4 rounded-2xl bg-white/10 p-4 md:flex">
+              {/* eslint-disable-next-line @next/next/no-img-element -- tiny static SVG */}
+              <img src="/qr.svg" alt="QR code to open MedMatch on your phone" width={88} height={88} className="rounded-lg bg-white p-1" />
+              <div className="text-sm">
+                <p className="font-semibold">Use it at the pharmacy</p>
+                <p className="text-teal-50/90">Scan to open on your phone, then add it to your home screen.</p>
+              </div>
             </div>
             <p className="mt-6 text-xs text-teal-100/80">US facts come from the National Library of Medicine (RxNorm) and FDA (openFDA). Not medical advice.</p>
           </aside>
@@ -448,6 +502,20 @@ export default function Home() {
             {aiNote && <p className="mt-1 text-zinc-600 dark:text-zinc-400">{aiNote}</p>}
           </div>
 
+          {variants.length > 0 && salts.length === 0 && (
+            <div className="space-y-2">
+              <p className="font-medium">Several medicines are called “{brand}”. Which one is on your strip?</p>
+              {variants.map((v) => (
+                <button key={v.name} onClick={() => pickDataset(v)} className="block w-full rounded-2xl border border-zinc-200 p-4 text-left transition hover:border-teal-500 dark:border-zinc-800">
+                  <span className="font-semibold">{v.name}</span>
+                  <span className="mt-0.5 block text-sm text-zinc-500">{v.salts.map((s) => `${s.name}${s.strength ? ` ${s.strength}` : ""}`).join(" + ")}</span>
+                </button>
+              ))}
+              <button className={link} onClick={() => { setVariants([]); setSalts([{ name: "", form: "oral" }]); }}>None of these: I&apos;ll type the ingredients</button>
+            </div>
+          )}
+
+          {!(variants.length > 0 && salts.length === 0) && <>
           <div className="space-y-2 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
             <div className="grid grid-cols-[1fr_6rem_2rem] gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
               <span>Ingredient</span>
@@ -464,14 +532,14 @@ export default function Home() {
                   options={suggestIngredient(s.name).map((n) => ({ key: n, label: n, onPick: () => setSalts(salts.map((x, j) => (j === i ? { ...x, name: n } : x))) }))}
                   placeholder="e.g. paracetamol"
                 />
-                <input aria-label="Strength in mg" className={input} inputMode="decimal" placeholder="mg" value={s.mg ?? ""} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, mg: Number(e.target.value) || undefined } : x)))} />
+                <input aria-label="Strength in mg" className={input} inputMode="decimal" placeholder={s.strength && !s.mg ? s.strength : "mg"} title={s.strength} value={s.mg ?? ""} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, mg: Number(e.target.value) || undefined } : x)))} />
                 <button type="button" aria-label="Remove ingredient" className="h-10 text-zinc-400 hover:text-red-600" onClick={() => setSalts(salts.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
             <button type="button" className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400" onClick={() => setSalts([...salts, { name: "", form }])}>+ Add another ingredient</button>
           </div>
 
-          {salts.some((x) => x.name.trim() && !x.mg) && (
+          {salts.some((x) => x.name.trim() && !x.mg && !x.strength) && (
             <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">Add the mg from the back of the strip. The strength changes which US product matches.</p>
           )}
 
@@ -487,7 +555,9 @@ export default function Home() {
 
           {unsure && (
             <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-              {unlisted ? (
+              {checkReason === "partial" ? (
+                <p><b>Our medicine list only shows two ingredients for this one,</b> and some strips have a third (often paracetamol or caffeine). Add anything missing from the back of the strip, then tick.</p>
+              ) : checkReason === "unlisted" ? (
                 <p><b>This brand isn&apos;t on our checked list,</b> so these ingredients come from our AI and could be a guess. Only continue if they match what&apos;s printed on your strip, or type them yourself.</p>
               ) : (
                 <p><b>Our AI isn&apos;t sure this brand exists.</b> These ingredients may be a guess. Only continue if they match what&apos;s printed on your strip, or type them yourself.</p>
@@ -506,6 +576,7 @@ export default function Home() {
               <button type="button" className={link} onClick={reset}>Start over</button>
             </div>
           )}
+          </>}
         </section>
       )}
 
@@ -550,9 +621,9 @@ export default function Home() {
               {current.matches.some((m) => m.status === "not_sold") && <> One part isn&apos;t sold in the US, so there is no exact US version. Ask a pharmacist what to use instead.</>}
             </div>
           )}
-          {current.matches.some((m) => m.brands.some((b) => b.toLowerCase() === current.brand.split(/[\s-]/)[0].toLowerCase())) && (
+          {current.clash && (
             <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-              <b>Same name, maybe a different medicine.</b> &ldquo;{current.brand.split(/[\s-]/)[0]}&rdquo; is also a US brand, but the US product can contain different ingredients. Match by the ingredients, not the box name.
+              <b>{current.clash.split(":")[0]}.</b>{current.clash.slice(current.clash.indexOf(":") + 1)}
             </div>
           )}
           {overlaps.length > 0 && (
@@ -571,6 +642,7 @@ export default function Home() {
             ))}
             {busy === "match" && <LookupProgress slow={slow} />}
             <p className="text-xs text-zinc-500">From RxNorm (NLM) and openFDA listings. Not medical advice: confirm with a pharmacist before taking anything.</p>
+            <Feedback key={current.id} brand={current.brand} source={source} ingredients={current.matches.map((m) => `${m.query}${m.strengthMg ? ` ${m.strengthMg}` : ""}`).join(" + ")} />
           </div>
 
           {/* 4. Next steps. */}

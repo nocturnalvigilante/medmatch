@@ -20,9 +20,24 @@ v1 answered one medicine at a time for people who already found the site, and it
 - **Card to show the pharmacist**, plus sharing to WhatsApp and family (proposal: "shareable card").
 - **Published evals** at `/accuracy` (proposal: "a public eval page").
 
+## Coverage: from 47 brands to 209,000 medicines
+v1 knew only what the AI remembered, and the first v2 pass added 47 hand-checked brands. Every other brand went to the AI, and then the user had to tick "I checked my strip".
+- We added a public, MIT-licensed list of **209,000 Indian medicines still sold**, with their ingredients (`data/`).
+- **Checked against our hand checks:** 52/53 agree. Where they differ, our hand check wins.
+- **Typing a real brand:** 30/30 right ingredients with **zero AI calls**, in a median of 8 ms (was about 2.6 s).
+- **Type-ahead** searches the whole list, ranked by popularity, and tolerates typos.
+- **"Which one is on your strip?"** When several products share a name (Asthalin syrup, respules or inhaler), you pick the one you have instead of us guessing. Typing the form ("Asthalin inhaler") goes straight to it.
+- **Possibly missing ingredients:** where the list shows only 2 ingredients and may be missing a third, the app says so and asks you to check the strip.
+- **Same name, different medicine:** detected automatically from RxNorm. Indian Benadryl syrup has 3 ingredients; US Benadryl is diphenhydramine alone.
+
+## Learning from real use
+- **"Was this right?"** on every result and medicine page. Reports go to a Supabase table (insert-only) and become new eval cases.
+- **Structured logs** for each lookup (source, confidence, AI disagreement, photo mismatches) in the Vercel logs, so we can see how often the AI path runs and fails.
+
 ## Reaching people who need it
 Research showed real search demand ("dolo 650 in usa", "pan d equivalent in usa", "paracetamol in usa name") that no site answers well.
 - **One page per medicine** (`/medicine/dolo-650`, …) with the US answer, warnings, an FAQ, structured data, a sitemap and share images.
+- **Installable on a phone** (web app manifest and icon), and a QR code on the desktop homepage to open it on your phone. That's for the fair, and for parents at the pharmacy.
 - **Before you fly**: an 8-item checklist for students and parents packing medicines (90-day supply, prescriptions, controlled drugs, medicines the US doesn't sell).
 
 ## Evals (all re-runnable; results in `eval/`)
@@ -30,6 +45,8 @@ Research showed real search demand ("dolo 650 in usa", "pan d equivalent in usa"
 - Tool use: `npm run tools-test` → `eval/tools-results.csv`
 - Name reading, with 50 made-up brands: `npm run ai-test` → `eval/ai-results.csv`
 - US match: `npm run match-test` → `eval/match-results.csv`
+- Typed brands on the production path: `node scripts/read-test.ts` → `eval/read-summary.json`
+- Dataset vs hand check: `python3 scripts/dataset-check.py` → `eval/dataset-check.json`
 
 The latest numbers are on `/accuracy`.
 
