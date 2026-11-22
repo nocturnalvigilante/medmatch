@@ -1,0 +1,60 @@
+Hi Raj, just want to share some feedback here on your v1 submission of the final project.
+Very nice that you spell out, I think, what your plan is, what some of the issues were,
+and then what you're going to do next. I know there's a lot going on behind the scenes,
+like on the build side. So some of my feedback is going to be a little more on the front end.
+And I think, you know, you probably hit on a lot of this and heard some of this feedback already
+from some of your kind of test users, right? But I think overall, you know, I think you mentioned
+this too, but on the homepage, like what, you know, can you clarify the value prop? This makes
+a lot of sense, but I don't know, maybe there's like a little flow chart you do or like enter your,
+you know, just kind of like the one, two, three, what am I going to get? Because some of this felt
+a little hidden, you know, when I kind of first came to the screen in terms of like, okay, what
+do I do? Do I enter it or do I even get to the right place? These are helpful, try, right? But I
+also think to your point, people spelling it, spelling things wrong. And then I don't even
+know how to spell things wrong. I also got hung up. Like I know it's searching a lot, but this took
+a long time, sometimes up to a full minute or two. So, you know, it seems super laggy. Maybe
+you can make it go a little quick and then here check ingredients. Ibuprofen, I assume is the
+ingredients, right? So I had trouble in some ways just finding like the right ones. And then again,
+what's the clear affordance here? Okay. I want to say, no, no, I had it right. Check again,
+check deeper. So one way to get around a lot of that, honestly, might be doing type ahead
+functionality. So as soon as I start typing in combi phlegm, again, not knowing what these are
+myself or acetaminophen, like you basically have a dropdown here that spells it out for you. So it's
+like, I'm able to search your ingredient or medicine list as I go. And in that sense,
+I feel a lot less certain going in. Here's a couple of states I came across, right? This one
+for a long time, I just sent these screenshots. Again, acetaminophen. I probably spelled this wrong,
+but not sold in the U.S. Again, is that a spelling mistake? To me, this is like a dead end.
+It must be sold in the U.S., right? Or maybe it's over the counter. Paracetamol, it's just kind of like
+PANDDs in the U.S. I think I searched this because you suggested it, but it's not unclear. Okay,
+I'm going to check another medicine. What's not sold in the U.S.? Because acetaminophen is sold in
+the U.S., right? Oh, but it's not sold as inhaled. Okay, so that's interesting. Ask a pharmacist or
+doctor. So maybe it's just reiterating it's not sold as inhaled in the U.S., right? That could be
+an interesting insight. So I call these basically feedback states, you know, or referred to in kind of
+UX and design. And I got stuck on this screen a good amount too. So I think that might help. The
+other thing is that if there's a lot going on behind the scenes in your tool, right? Again,
+you see that my cabinet just disappeared there. Maybe once I sign in, the cabinet kind of stays,
+I assume, and persists. But if it is just one big text box as the core of the interface, which is
+okay, you know, I would make sure on your polish pass, you know, closer to submission, which again,
+I know is not the focus of V1, like making this really more front and center beautiful. Like,
+this feels like a form with one on versus like, think about Google. Google is basically just one,
+right? One form field, an iconic form field, but everything else, you know, moves away and it
+basically just lets you search, right? So can you do something with the branding? Can you add a little
+bit of the, you know, just centering? Obviously think of different AI prompts or like, you know,
+if you go to Cloud AI, the browser window, that's something on the design side. Can you center things,
+make everything else strip away? And then I think this is a good start for what the value prop is,
+but maybe half the screen is the field and the other half with a gradient is more like the story
+or the marketing pitch for it, right? Again, that's kind of a polished layer, but, you know,
+I think knocking out some of the more functionality things will be important out of the gate. And then,
+you know, UX is half the battle, right? So continue to test with real users. And I would guess that if
+you can suggest based on how they're starting to type what you have and what you can match,
+that would be a big, you know, a very good start. And then of course, on the other side,
+when you don't have it in stock, say exactly what you don't have in stock very clearly here.
+Like on this screen, for instance, I know there's a lot of information, but where does my eye look?
+It still looks at MedMatch. Maybe this is more styled like a logo. Am I supposed to read MedMatch
+again or check the ingredients? Okay. There's a call to action here. There's red down here.
+So you could explore that with Claude too, from a design front, like where should the focal area be?
+What's the right information hierarchy between my cabinet and type? But it kind of just feels like
+things are thrown all over the page, right? But what is the hierarchy? What are you asking me to do?
+And what is the error? If you kind of square those in, you know, other visual front end
+polish, whatever technologies is going on beneath the surface is going to be featured much, you know,
+much more potently and compellingly. So anyway, let me know if you have questions,
+anything I've said. I think, you know, hopefully that's helpful.
+And have a terrific rest of your week.

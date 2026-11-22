@@ -3,6 +3,11 @@
 About 209,000 Indian medicines that are still sold, in forms a traveller carries (oral, inhaled, topical, eye), with their ingredients and strengths.
 
 - **Source:** [Indian Medicine Dataset](https://github.com/junioralive/Indian-Medicine-Dataset) (`DATA/updated_indian_medicine_data.csv`), MIT license. See [`LICENSE-indian-medicine-dataset.txt`](LICENSE-indian-medicine-dataset.txt).
+- **Rebuild from scratch:**
+  ```bash
+  curl -L -o /tmp/updated.csv https://raw.githubusercontent.com/junioralive/Indian-Medicine-Dataset/HEAD/DATA/updated_indian_medicine_data.csv
+  python3 scripts/build-india.py /tmp/updated.csv data/india
+  ```
 - **Built by:** `python3 scripts/build-india.py updated_indian_medicine_data.csv data/india`
 - **Files:** one per first letter (`a.json` … `z.json`), rows sorted by name, plus `top.json` (popular names for the sitemap). A search only loads one letter.
 - **Row format:** `[name, form (o/i/t/e/a), [[ingredient, strength]], maker, complete (1/0), popularity rank, base key]`
