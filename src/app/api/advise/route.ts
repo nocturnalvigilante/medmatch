@@ -5,7 +5,9 @@ import { matchDrug, findCombination, productsAtStrength, type Form } from "@/lib
 import { rateLimited } from "@/lib/ratelimit";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
-const MAX_TURNS = 6;
+// Security review: cap the work one request can trigger (model turns and tool calls), not just output tokens.
+const MAX_TURNS = 4;
+const MAX_TOOL_CALLS = 8;
 
 const SYSTEM = `You help someone who moved from India to the US find what to ask for at a US pharmacy.
 They confirmed the ingredients printed on their Indian medicine. Use the tools to look things up:
@@ -70,7 +72,7 @@ type Part = { text?: string; functionCall?: { name: string; args: Args }; though
 type Content = { role: "user" | "model"; parts: (Part | { functionResponse: { name: string; response: unknown } })[] };
 
 export async function POST(req: Request) {
-  if (rateLimited(req, "advise", 10)) return Response.json({ error: "rate_limited" }, { status: 429 });
+  if (rateLimited(req, "advise", 6)) return Response.json({ error: "rate_limited" }, { status: 429 });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return Response.json({ error: "no_key" }, { status: 503 });
 
@@ -87,17 +89,24 @@ export async function POST(req: Request) {
   const toolLog: { tool: string; args: Args; result: unknown }[] = [];
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
-        contents,
-        tools: TOOLS,
-        generationConfig: { temperature: 0, maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" } }, // token cap
-      }),
-      signal: AbortSignal.timeout(20000),
-    }).catch(() => undefined);
+    const call = () =>
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents,
+          tools: TOOLS,
+          generationConfig: { temperature: 0, maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" } }, // token cap
+        }),
+        signal: AbortSignal.timeout(20000),
+      }).catch(() => undefined);
+    let res = await call();
+    // Tools eval: 1 in 20 runs failed on a transient Gemini 503/429. Retry once after a short wait.
+    if (!res || res.status === 503 || res.status === 429) {
+      await new Promise((r) => setTimeout(r, 1500));
+      res = await call();
+    }
     if (!res?.ok) {
       console.error(`advise gemini: ${res ? res.status : "timeout/network"}`);
       return Response.json({ error: "ai_failed", tools: toolLog }, { status: 502 });
@@ -107,9 +116,10 @@ export async function POST(req: Request) {
     const parts: Part[] = content?.parts ?? [];
     const calls = parts.filter((p) => p.functionCall);
     if (calls.length) {
+      if (toolLog.length >= MAX_TOOL_CALLS) return Response.json({ error: "too_many_steps", tools: toolLog }, { status: 502 });
       contents.push({ role: "model", parts: content.parts }); // keep thought signatures as returned
       const responses = await Promise.all(
-        calls.slice(0, 6).map(async (p) => {
+        calls.slice(0, Math.max(0, MAX_TOOL_CALLS - toolLog.length)).map(async (p) => {
           const { name, args } = p.functionCall!;
           const result = await runTool(name, args ?? {}, form);
           toolLog.push({ tool: name, args, result });
