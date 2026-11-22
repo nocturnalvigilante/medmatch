@@ -20,3 +20,9 @@ create policy "own rows" on cabinet for all to authenticated
 revoke all on table cabinet from anon;
 revoke all on table cabinet from authenticated;
 grant select, insert, delete on table cabinet to authenticated;
+
+-- v2 security review: cap row size so one account can't store unbounded data.
+alter table cabinet drop constraint if exists matches_size;
+alter table cabinet drop constraint if exists brand_len;
+alter table cabinet add constraint matches_size check (pg_column_size(matches) < 20000);
+alter table cabinet add constraint brand_len check (char_length(brand) <= 120);

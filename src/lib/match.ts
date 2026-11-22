@@ -28,7 +28,7 @@ const WITHDRAWN: Record<string, string> = {
   phenylpropanolamine: "FDA removed phenylpropanolamine in 2000.",
 };
 
-const SALT_SUFFIX = /\s+(sodium|potassium|calcium|magnesium|hydrochloride|hcl|hydrobromide|maleate|mesylate|besylate|succinate|tartrate|citrate|sulphate|sulfate|phosphate|acetate|fumarate|bromide|trihydrate|dihydrate|monohydrate)$/i;
+const SALT_SUFFIX = /\s+(sodium|potassium|calcium|magnesium|dihydrochloride|hydrochloride|hcl|hydrobromide|maleate|mesylate|besylate|succinate|tartrate|citrate|sulphate|sulfate|phosphate|acetate|fumarate|bromide|trihydrate|dihydrate|monohydrate)$/i;
 
 export type DrugMatch = {
   query: string; // what the user confirmed, e.g. "paracetamol"
@@ -113,9 +113,10 @@ async function getJSON(url: string): Promise<J> {
   if (cache.has(url)) return cache.get(url);
   // Speed (instructor feedback: 1-2 min waits): Next's data cache keeps RxNorm/openFDA answers for a day across requests and instances.
   const res = await fetch(url, { signal: AbortSignal.timeout(10000), next: { revalidate: 86400 } });
-  if (res.status === 404) throw new NotFound(url);
+  if (res.status === 404) throw new NotFound("not found"); // never put the URL (may hold api_key) in an error
   if (!res.ok) throw new Error(String(res.status)); // never put the URL (may hold api_key) in an error
   const json = await res.json();
+  if (cache.size > 1000) cache.delete(cache.keys().next().value!); // security review: bound memory (oldest out)
   cache.set(url, json);
   return json;
 }
