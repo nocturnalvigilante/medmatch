@@ -1,0 +1,20 @@
+{
+  "handChecked": 61,
+  "found": 53,
+  "agree": 52,
+  "disagreements": [
+    "Norflox 400"
+  ],
+  "notFound": [
+    "Saridon",
+    "Norflox-TZ",
+    "Thyronorm 50",
+    "Nise 100",
+    "Drotin 40",
+    "Pantocid 40",
+    "Amlong 5",
+    "Lasix 40"
+  ],
+  "medicines": 208861,
+  "ranAt": "2026-11-22T00:59:04.993236+00:00"
+}

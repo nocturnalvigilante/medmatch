@@ -4,6 +4,14 @@
 
 export const slugOf = (brand: string) => brand.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+const DESC_WORD = /^(tablets?|capsules?|syrup|suspension|oral|drops?|cream|gel|ointment|lotion|inhaler|rotacaps?|respules|solution|powder|sachet|granules|spray|dt|md|sr|er|xr|cr|pr|mr|od|kid|kids|chewable|dispersible|effervescent|soft|gelatin|film|coated|new|paediatric|pediatric|junior|infant|\(paediatric\)|liquid|elixir|sugar|free)$/;
+// "Allegra 120mg Tablet" and "allegra 120" share a key: drop trailing form words and "mg", keep letters and digits.
+export function baseKey(name: string) {
+  const words = name.toLowerCase().replace(/(\d)\s*mg\b/g, "$1").split(/\s+/);
+  while (words.length > 1 && DESC_WORD.test(words[words.length - 1])) words.pop();
+  return words.join("").replace(/[^a-z0-9]/g, "");
+}
+
 export type KnownBrand = { brand: string; salts: { name: string; mg: number }[] };
 
 export const BRANDS: KnownBrand[] = [
