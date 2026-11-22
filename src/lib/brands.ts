@@ -2,6 +2,8 @@
 // Used for type-ahead (instant, no AI call) and as a fast path in /api/read.
 // Only brands whose label ingredients we are sure of. Anything else goes to the AI, then the user checks the strip.
 
+export const slugOf = (brand: string) => brand.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
 export type KnownBrand = { brand: string; salts: { name: string; mg: number }[] };
 
 export const BRANDS: KnownBrand[] = [
