@@ -1,7 +1,7 @@
 # Builds data/india.json from the Indian Medicine Dataset (MIT): https://github.com/junioralive/Indian-Medicine-Dataset (DATA/updated_indian_medicine_data.csv).
 # Keeps medicines still sold, in forms a traveller carries (oral, inhaled, topical, eye), with their ingredients and a popularity rank.
 import csv,re,json,sys,collections
-SRC=sys.argv[1]; OUT=sys.argv[2]  # usage: python3 scripts/build-india.py updated_indian_medicine_data.csv data/india.json
+SRC=sys.argv[1]; OUT=sys.argv[2]  # usage: python3 scripts/build-india.py updated_indian_medicine_data.csv data/india
 csv.field_size_limit(10**8)
 FORM_WORDS=r"(tablet|tablets|capsule|capsules|syrup|suspension|oral|drops?|drop|cream|gel|ointment|lotion|inhaler|rotacap|respules|solution|powder|sachet|granules|spray|dt|md|sr|er|xr|cr|pr|mr|od|kid|kids|forte|plus|eye|ear|nasal|chewable|dispersible|effervescent|soft|gelatin|film|coated|sugar|free|paediatric|pediatric|junior|infant|injection)"
 def form_of(n):
@@ -50,7 +50,35 @@ for r in rows:
     mfr=re.sub(r"\s+(pvt\.?|private|ltd\.?|limited|pharmaceuticals?|pharma|laboratories|labs?|healthcare|india|inc\.?)\b.*$","",r["manufacturer_name"].strip(),flags=re.I)[:40]
     items.append([name,f,salts,mfr,full,int(r['id'])])
 items.sort(key=lambda x:x[5])
-for i,it in enumerate(items): it[5]=i  # rank: dataset order (1mg popularity), 0 = most popular
-json.dump(items,open(OUT,"w"),separators=(",",":"))
+for i,it in enumerate(items): it[5]=i  # rank: dataset order (popularity within each letter), 0 = most popular
+
+# Fast cold starts: one file per first character, rows pre-sorted by their letters-and-digits key,
+# each row carrying its base key (the name without form words / "mg") so the server builds nothing at startup.
+import os
+DESC=re.compile(r"^(tablets?|capsules?|syrup|suspension|oral|drops?|cream|gel|ointment|lotion|inhaler|rotacaps?|respules|solution|powder|sachet|granules|spray|dt|md|sr|er|xr|cr|pr|mr|od|kid|kids|chewable|dispersible|effervescent|soft|gelatin|film|coated|new|paediatric|pediatric|junior|infant|\(paediatric\)|liquid|elixir|sugar|free)$")
+def flat(n): return re.sub(r"[^a-z0-9]","",n.lower())
+def base(n):
+    w=re.sub(r"(\d)\s*mg\b",r"\1",n.lower()).split()
+    while len(w)>1 and DESC.match(w[-1]): w.pop()
+    return re.sub(r"[^a-z0-9]","","".join(w))
+def shard(n):
+    c=flat(n)[:1]
+    return c if c.isalpha() else "0"
+os.makedirs(OUT,exist_ok=True)
+shards=collections.defaultdict(list)
+for it in items:
+    if not flat(it[0]): continue
+    shards[shard(it[0])].append(it+[base(it[0])])
+for c,rows in shards.items():
+    rows.sort(key=lambda r:flat(r[0]))
+    json.dump(rows,open(os.path.join(OUT,c+".json"),"w"),separators=(",",":"))
+# Popular medicines per letter (sitemap and A-Z page) without loading every shard.
+top=[]; count=collections.Counter()
+for it in items:
+    c=shard(it[0])
+    if it[1]!="o" or count[c]>=150: continue
+    count[c]+=1; top.append(it[0])
+json.dump(top,open(os.path.join(OUT,"top.json"),"w"),separators=(",",":"))
+print("shards",{c:len(r) for c,r in sorted(shards.items())})
 print("kept",len(items),"skipped",dict(skipped))
 print("salts unique",len({s[0] for it in items for s in it[2]}))

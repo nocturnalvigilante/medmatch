@@ -1,7 +1,8 @@
 # Cross-checks the Indian Medicine Dataset (data/india.json) against our hand-checked brands (eval/medicines.json + src/lib/brands.ts).
 # Writes eval/dataset-check.json. Run: python3 scripts/dataset-check.py
 import json,re
-d=json.load(open("data/india.json"))
+import glob
+d=[r for f in sorted(glob.glob("data/india/[a-z0].json")) for r in json.load(open(f))]
 DESC=r"(tablets?|capsules?|syrup|suspension|oral|drops?|cream|gel|ointment|lotion|inhaler|rotacap|respules|solution|powder|sachet|granules|spray|dt|md|sr|er|xr|cr|pr|mr|od|cv|ds|kid|kids|chewable|dispersible|effervescent|soft|gelatin|film|coated|new|paediatric|pediatric|junior|infant|\(paediatric\)|liquid|elixir)"
 def base(n):
     n=n.lower()

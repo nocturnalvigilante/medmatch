@@ -7,11 +7,13 @@ import type { DrugMatch, Form } from "@/lib/match";
 import { baseKey, findBrand, slugOf, suggest, suggestIngredient, type KnownBrand } from "@/lib/brands";
 import { MedicineActions } from "@/components/MedicineActions";
 import { Feedback } from "@/components/Feedback";
+import { SymptomCard } from "@/components/SymptomCard";
+import type { SymptomPlan } from "@/lib/symptoms";
 import Link from "next/link";
 
 type Salt = { name: string; mg?: number; strength?: string; form: Form };
 type DatasetMed = { name: string; form: Form; complete: boolean; maker?: string; salts: { name: string; mg?: number; strength: string }[] };
-type Medicine = { id: string; brand: string; matches: DrugMatch[]; clash?: string };
+type Medicine = { id: string; brand: string; matches: DrugMatch[]; clash?: string; symptoms?: SymptomPlan };
 type Step = "brand" | "confirm" | "result";
 type Option = { key: string; label: string; detail?: string; onPick: () => void };
 
@@ -129,6 +131,11 @@ export default function Home() {
       setError("Couldn't save to your cabinet. Try again.");
     }
   }
+
+  // Cold start: wake the search server while the user is still reading, so the first keystroke is fast.
+  useEffect(() => {
+    fetch("/api/suggest?q=w").catch(() => {});
+  }, []);
 
   // Type-ahead (instructor feedback): our checked list answers instantly; RxNorm spelling suggestions fill in when it has nothing.
   const local = useMemo(() => suggest(brand), [brand]);
@@ -323,7 +330,7 @@ export default function Home() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
       setJustSaved(false);
-      setCurrent({ id: crypto.randomUUID(), brand: brand.trim(), matches: j.matches, clash: j.clash });
+      setCurrent({ id: crypto.randomUUID(), brand: brand.trim(), matches: j.matches, clash: j.clash, symptoms: j.symptoms });
       setStep("result");
       fetchAdvice(brand.trim(), clean);
     } catch (e) {
@@ -613,6 +620,8 @@ export default function Home() {
               />
             </div>
           )}
+
+          {current.symptoms && <SymptomCard plan={current.symptoms} />}
 
           {/* 2. Warnings, only when they apply. */}
           {current.matches.length > 1 && (

@@ -3,6 +3,7 @@
 import { matchDrug, findCombination, usBrandIngredients, type DrugMatch, type Form } from "@/lib/match";
 import { BRANDS, slugOf } from "@/lib/brands";
 import { bySlug, sameIngredients } from "@/lib/india";
+import { symptomPlan, type SymptomPlan } from "@/lib/symptoms";
 
 export { slugOf };
 
@@ -26,6 +27,7 @@ export type BrandSummary = {
   askFor: string; // one line for the pharmacist
   status: "otc" | "rx" | "not_sold" | "mixed" | "unknown";
   warnings: string[];
+  symptoms?: SymptomPlan;
 };
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -72,7 +74,8 @@ export async function summarize(brand: Med): Promise<BrandSummary> {
   const clash = await brandClash(brand.brand, brand.salts.map((x) => x.name));
   if (clash) warnings.unshift(clash);
 
-  return { brand, matches, combo, askFor, status, warnings };
+  const symptoms = await symptomPlan(brand.salts.map((x) => x.name), /syrup|suspension|drops?\b|liquid|linctus|elixir/i.test(brand.brand) || brand.salts.some((x) => /\/\s*\d*\s*ml/i.test(x.strength ?? "")));
+  return { brand, matches, combo, askFor, status, warnings, symptoms };
 }
 
 // "Benadryl" in India is a 3-ingredient cough syrup; US Benadryl is diphenhydramine alone. Same box name, different medicine.
@@ -91,6 +94,6 @@ export async function brandClash(brandName: string, indianSalts: string[]): Prom
 export function relatedBrands(brand: Med, limit = 6): { brand: string; slug: string }[] {
   const mine = new Set(brand.salts.map((s) => s.name));
   const checked = BRANDS.filter((b) => b.brand !== brand.brand && b.salts.some((s) => mine.has(s.name))).map((b) => ({ brand: b.brand, slug: slugOf(b.brand) }));
-  const fromData = sameIngredients({ name: brand.brand, salts: brand.salts.map((s) => ({ name: s.name, strength: s.strength ?? "" })), form: brand.form, maker: "", complete: true, rank: 0, slug: brand.slug }, limit).map((d) => ({ brand: d.name, slug: d.slug }));
+  const fromData = sameIngredients({ name: brand.brand, salts: brand.salts }, limit).map((d) => ({ brand: d.name, slug: d.slug }));
   return [...checked, ...fromData].slice(0, limit);
 }
