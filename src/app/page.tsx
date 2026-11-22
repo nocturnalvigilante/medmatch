@@ -4,7 +4,9 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { supabaseWithClerk } from "@/lib/supabase";
 import type { DrugMatch, Form } from "@/lib/match";
-import { suggest, suggestIngredient, type KnownBrand } from "@/lib/brands";
+import { findBrand, slugOf, suggest, suggestIngredient, type KnownBrand } from "@/lib/brands";
+import { MedicineActions } from "@/components/MedicineActions";
+import Link from "next/link";
 
 type Salt = { name: string; mg?: number; form: Form };
 type Medicine = { id: string; brand: string; matches: DrugMatch[] };
@@ -53,6 +55,7 @@ export default function Home() {
   // AI eval: made-up brands came back with invented ingredients at "medium" confidence; real brands came back "high".
   const [unsure, setUnsure] = useState(false);
   const [checkedStrip, setCheckedStrip] = useState(false);
+  const [unlisted, setUnlisted] = useState(false); // brand not on our checked list: AI answer may be a guess even when confident
   const [busy, setBusy] = useState<"" | "read" | "match">("");
   const [slow, setSlow] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -80,18 +83,25 @@ export default function Home() {
       const { data, error } = await db.from("cabinet").select("med_id, brand, matches").order("created_at");
       if (error) return setError("Couldn't load your saved cabinet. Try again in a minute.");
       const saved: Medicine[] = (data ?? []).map((r) => ({ id: r.med_id, brand: r.brand, matches: r.matches }));
-      // Instructor feedback: the cabinet "disappeared" after signing in. Move medicines saved on this device into the account.
-      const toMove = local.filter((m) => !saved.some((s) => s.id === m.id));
-      if (toMove.length) {
-        const res = await db.from("cabinet").insert(toMove.map((m) => ({ med_id: m.id, brand: m.brand, matches: m.matches })));
-        if (res.error) return setCabinet([...saved, ...toMove]); // keep showing them; they stay on this device
-      }
-      try {
-        localStorage.removeItem("cabinet");
-      } catch {}
-      setCabinet([...saved, ...toMove]);
+      // TA feedback: the cabinet "disappeared" after signing in. Offer to move medicines saved on this device into the account.
+      // Security review: ask first, since on a shared computer they may belong to someone else.
+      setPendingMove(local.filter((m) => !saved.some((s) => s.id === m.id)));
+      setCabinet(saved);
     })();
   }, [isLoaded, db]);
+
+  const [pendingMove, setPendingMove] = useState<Medicine[]>([]);
+  async function moveToAccount(yes: boolean) {
+    const toMove = pendingMove;
+    setPendingMove([]);
+    if (!yes || !db) return;
+    const res = await db.from("cabinet").insert(toMove.map((m) => ({ med_id: m.id, brand: m.brand, matches: m.matches })));
+    if (res.error) return setError("Couldn't move those medicines into your account. They're still saved on this device.");
+    try {
+      localStorage.removeItem("cabinet");
+    } catch {}
+    setCabinet((c) => [...c, ...toMove]);
+  }
 
   async function saveCabinet(c: Medicine[]) {
     const before = cabinet;
@@ -132,6 +142,7 @@ export default function Home() {
   function startFresh() {
     setError("");
     setUnsure(false);
+    setUnlisted(false);
     setCheckedStrip(false);
   }
 
@@ -161,16 +172,57 @@ export default function Home() {
     ...remote.filter((n) => !local.some((l) => l.label === n)).map((n) => ({ key: `r-${n}`, label: n, detail: "ingredient · did you mean?", onPick: () => pickIngredient(n) })),
   ];
 
-  async function readBrand(e?: React.FormEvent) {
+  // v2 (proposal + TA feedback): read the strip from a photo. Shrink it in the browser first (fast upload, under the size cap).
+  const fileRef = useRef<HTMLInputElement>(null);
+  async function readPhoto(file: File) {
+    setBusy("read");
+    startFresh();
+    setAiNote("");
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bmp.width * scale);
+      canvas.height = Math.round(bmp.height * scale);
+      canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const image = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+      const res = await fetch("/api/photo", { method: "POST", body: JSON.stringify({ image, mime: "image/jpeg" }) });
+      const j = await res.json();
+      if (!res.ok) return setError(j.note ?? "We couldn't read that photo. Type the name instead.");
+      if (!j.salts.length) {
+        if (j.brand) {
+          setBrand(j.brand);
+          return readBrand(undefined, j.brand); // brand readable, composition not: fall back to reading the name
+        }
+        return setError(j.note || "We couldn't find a medicine name in that photo. Try the side with the name, in good light.");
+      }
+      setBrand(j.brand || "Your medicine");
+      setSalts(j.salts.map((x: Salt) => ({ ...x, form: "oral" })));
+      setUnsure(j.confidence !== "high");
+      const bits = [j.source === "list" ? "Read the name from your photo; ingredients from our checked list." : "Read from your photo. Check every line against the strip."];
+      if (j.salts.some((x: Salt) => !x.mg)) bits.push("Some strengths weren't readable. Add the mg.");
+      if (j.note) bits.push(j.note);
+      setAiNote(bits.join(" "));
+      setStep("confirm");
+    } catch {
+      setError("We couldn't open that photo. Try again, or type the name.");
+    } finally {
+      setBusy("");
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function readBrand(e?: React.FormEvent, override?: string) {
     e?.preventDefault();
-    if (!brand.trim()) return;
+    const name = (override ?? brand).trim();
+    if (!name) return;
     setBusy("read");
     setSlow(false);
     const slowTimer = setTimeout(() => setSlow(true), 2500);
     startFresh();
     setAiNote("");
     try {
-      const res = await fetch("/api/read", { method: "POST", body: JSON.stringify({ brand }) });
+      const res = await fetch("/api/read", { method: "POST", body: JSON.stringify({ brand: name }) });
       const j = await res.json();
       if (!res.ok) {
         setSalts([{ name: "", form: "oral" }]);
@@ -179,9 +231,10 @@ export default function Home() {
         if (j.salts.length && j.brand) setBrand(j.brand); // use the corrected spelling, e.g. "Combiflam"
         setSalts(j.salts.length ? j.salts.map((s: Salt) => ({ ...s, form: "oral" })) : [{ name: "", form: "oral" }]);
         const bits = [];
-        if (!j.salts.length) bits.push(`We don't recognise “${brand.trim()}”. Type the ingredients printed on the back of the strip.`);
+        if (!j.salts.length) bits.push(`We don't recognise “${name}”. Type the ingredients printed on the back of the strip.`);
         else if (j.source === "list") bits.push("From our checked list of Indian brands. Still compare with the back of your strip.");
         else if (j.confidence === "high") bits.push("Our AI read these. Check them against the back of your strip.");
+        setUnlisted(j.confidence === "unlisted");
         setUnsure(j.salts.length > 0 && j.confidence !== "high");
         if (j.salts.length && !j.strengthKnown) bits.push("Strength wasn't in the name. Check the mg on the strip.");
         if (j.note) bits.push(j.note);
@@ -273,6 +326,13 @@ export default function Home() {
 
   return (
     <main className={`mx-auto px-4 pb-16 ${step === "brand" ? "max-w-5xl" : "max-w-2xl"}`}>
+      {pendingMove.length > 0 && (
+        <div role="status" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-teal-300 bg-teal-50 p-3 text-sm dark:border-teal-800 dark:bg-teal-950/40">
+          <span className="flex-1">{pendingMove.length} medicine{pendingMove.length > 1 ? "s" : ""} saved on this device ({pendingMove.map((m) => m.brand).join(", ")}). Move into your account?</span>
+          <button className="rounded-lg bg-teal-700 px-3 py-1.5 font-medium text-white" onClick={() => moveToAccount(true)}>Move</button>
+          <button className="rounded-lg border border-zinc-300 px-3 py-1.5 dark:border-zinc-700" onClick={() => moveToAccount(false)}>Not mine</button>
+        </div>
+      )}
       {step === "brand" && (
         <div className="grid gap-6 pt-6 md:grid-cols-2 md:items-stretch md:pt-12">
           {/* Search half: one big field, nothing else competing for attention. */}
@@ -291,7 +351,12 @@ export default function Home() {
                 autoFocus
               />
               <button className={`${primary} mt-3 w-full py-3 text-base`} disabled={!!busy || !brand.trim()}>
-                {busy === "read" ? <><Spinner /> Reading the name…</> : "Next: check ingredients →"}
+                {busy === "read" ? <><Spinner /> Reading…</> : "Next: check ingredients →"}
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && readPhoto(e.target.files[0])} />
+              <button type="button" className={`${ghost} mt-2 w-full`} disabled={!!busy} onClick={() => fileRef.current?.click()}>
+                <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><circle cx="12" cy="13" r="3.5" /></svg>
+                Or take a photo of the strip
               </button>
               {slow && <p className="mt-2 text-sm text-zinc-500">This name isn&apos;t on our list, so our AI is reading it. Up to 10 seconds.</p>}
               {!busy && (
@@ -340,6 +405,37 @@ export default function Home() {
             </div>
             <p className="mt-6 text-xs text-teal-100/80">US facts come from the National Library of Medicine (RxNorm) and FDA (openFDA). Not medical advice.</p>
           </aside>
+          <section className="md:col-span-2">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500">Popular medicines</h2>
+              <Link href="/medicines" className="text-sm text-teal-700 hover:underline dark:text-teal-400">See all →</Link>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {["Dolo 650", "Pan-D", "Combiflam", "Montair LC", "Augmentin 625 Duo", "Allegra 120", "Azithral 500", "Meftal Spas"].map((b) => {
+                const k = findBrand(b)!;
+                return (
+                  <Link key={b} href={`/medicine/${slugOf(b)}`} className="rounded-xl border border-zinc-200 p-3 transition hover:border-teal-500 dark:border-zinc-800">
+                    <span className="block font-medium">{b}</span>
+                    <span className="block truncate text-xs text-zinc-500">{k.salts.map((x) => x.name).join(" + ")}</span>
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <Link href="/before-you-fly" className="rounded-2xl bg-zinc-50 p-4 transition hover:bg-zinc-100 dark:bg-zinc-900/50 dark:hover:bg-zinc-900">
+                <p className="font-medium">Packing for the US?</p>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">8 things to check before you bring medicines from India.</p>
+              </Link>
+              <Link href="/accuracy" className="rounded-2xl bg-zinc-50 p-4 transition hover:bg-zinc-100 dark:bg-zinc-900/50 dark:hover:bg-zinc-900">
+                <p className="font-medium">How accurate is it?</p>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Our published test results, including where the AI fails.</p>
+              </Link>
+              <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-900/50">
+                <p className="font-medium">Show the pharmacist</p>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Every result has a big-text card to show at the counter, or share with family.</p>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 
@@ -391,7 +487,11 @@ export default function Home() {
 
           {unsure && (
             <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-              <p><b>Our AI isn&apos;t sure this brand exists.</b> These ingredients may be a guess. Only continue if they match what&apos;s printed on your strip, or type them yourself.</p>
+              {unlisted ? (
+                <p><b>This brand isn&apos;t on our checked list,</b> so these ingredients come from our AI and could be a guess. Only continue if they match what&apos;s printed on your strip, or type them yourself.</p>
+              ) : (
+                <p><b>Our AI isn&apos;t sure this brand exists.</b> These ingredients may be a guess. Only continue if they match what&apos;s printed on your strip, or type them yourself.</p>
+              )}
               <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={checkedStrip} onChange={(e) => setCheckedStrip(e.target.checked)} /> I checked these against my strip</label>
             </div>
           )}
@@ -434,6 +534,12 @@ export default function Home() {
               {!!advice.points?.length && <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{advice.points.map((p, i) => <li key={i}>{p}</li>)}</ul>}
               {advice.seePharmacist && <p className="mt-3 text-sm font-medium">Show this screen to the pharmacist before buying.</p>}
               {!!advice.tools?.length && <p className="mt-2 text-xs text-zinc-500">AI summary of live lookups: {advice.tools.join(", ")} (RxNorm, openFDA).</p>}
+              <MedicineActions
+                brand={current.brand}
+                askFor={advice.askFor ?? ""}
+                lines={current.matches.map((m) => ({ india: `${m.query}${m.strengthMg ? ` ${m.strengthMg} mg` : ""}`, us: m.usName ?? m.query, status: STATUS[m.status].label }))}
+                shareUrl={findBrand(current.brand) ? `${window.location.origin}/medicine/${slugOf(findBrand(current.brand)!.brand)}` : window.location.origin}
+              />
             </div>
           )}
 

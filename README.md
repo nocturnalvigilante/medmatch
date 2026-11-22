@@ -15,6 +15,17 @@ Warnings:
 - Brand names that mean a different product in the US (for example Benadryl).
 - Strength is missing from what you entered.
 
+## New in v2
+- **Photo of the strip:** the camera button reads the composition printed on the foil (Gemini vision), so ingredients come from the strip, not the model's memory.
+- **AI agent with tools** (`/api/advise`): Gemini calls RxNorm/openFDA lookups (`find_combination`, `products_at_strength`, `lookup_ingredient`) and writes "what to ask for" only from their results.
+- **Type-ahead** with typo tolerance, and an instant answer for 47 hand-checked Indian brands.
+- **A page for each medicine** (`/medicine/dolo-650`, …), with an FAQ, structured data, a sitemap and share images, so people find it from Google searches like "Dolo 650 in USA".
+- **A card to show the pharmacist**, plus sharing to WhatsApp and family.
+- **Before you fly** (`/before-you-fly`): a packing checklist for students and parents.
+- **Published evals** at [`/accuracy`](https://medmatch-xi.vercel.app/accuracy).
+
+What changed and why: [`CHANGES_V2.md`](CHANGES_V2.md). Security pass: [`SECURITY.md`](SECURITY.md).
+
 ## How it works
 | Part | What it does |
 |---|---|
@@ -34,6 +45,8 @@ The matcher is [`src/lib/match.ts`](src/lib/match.ts). The rule there: if we can
   - **Typos from testers:** 8/8 corrected ("disprine" → Disprin, "cefoximine" → cefixime).
   - **Made-up brands** (the dangerous case): the AI said "don't know" for 5/8 and invented ingredients for 3/8. **All 3 inventions were caught** by the "AI isn't sure" box. Before the two-answer check, a made-up brand got invented ingredients at *high* confidence.
   - **Cost of the check:** 3 of 38 real names show the box anyway (one extra tick), and a read takes about 3 s instead of about 1 s.
+- **Photo reading:** [`eval/photo-results.csv`](eval/photo-results.csv) (`npm run photo-test`).
+- **AI tool use:** [`eval/tools-results.csv`](eval/tools-results.csv) (`npm run tools-test`). For 20 medicines (15 of them combinations) it checks that the right tools were called, that the answer agrees with the combination lookup, and that no US brand came from the model's memory.
 - **User tests:** [`eval/user-tests.md`](eval/user-tests.md). What real users did and said, and what we changed.
 - **v2 plan:** [`V2_PLAN.md`](V2_PLAN.md).
 
