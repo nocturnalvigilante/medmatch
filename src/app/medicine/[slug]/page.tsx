@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { brandBySlug, describe, relatedBrands, summarize } from "@/lib/summary";
 import { MedicineActions } from "@/components/MedicineActions";
 import { Feedback } from "@/components/Feedback";
+import { SymptomCard } from "@/components/SymptomCard";
 
 // Rendered per request (the layout reads the Clerk session); the RxNorm/openFDA answers underneath are cached for a day.
 
@@ -79,6 +80,12 @@ export default async function MedicinePage({ params }: { params: Promise<{ slug:
         <p className="mt-1 text-xl font-semibold">{s.askFor}</p>
         <MedicineActions brand={brand.brand} askFor={s.askFor} lines={s.matches.map((m) => ({ india: `${m.query}${m.strengthMg ? ` ${m.strengthMg} mg` : ""}`, us: m.usName ?? m.query, status: STATUS_LABEL[m.status] }))} />
       </section>
+
+      {s.symptoms && (
+        <div className="mt-5">
+          <SymptomCard plan={s.symptoms} />
+        </div>
+      )}
 
       {s.warnings.length > 0 && (
         <section className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">

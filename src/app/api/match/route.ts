@@ -1,6 +1,7 @@
 import { matchDrug, type Form } from "@/lib/match";
 import { rateLimited } from "@/lib/ratelimit";
 import { brandClash } from "@/lib/summary";
+import { symptomPlan } from "@/lib/symptoms";
 
 const FORMS: Form[] = ["oral", "inhaled", "topical", "eye"];
 
@@ -16,7 +17,12 @@ export async function POST(req: Request) {
     .filter((s) => s.name);
   if (!clean.length) return Response.json({ error: "Add at least one active ingredient." }, { status: 400 });
   const brand = String(body?.brand ?? "").trim().slice(0, 80);
-  const [matches, clash] = await Promise.all([Promise.all(clean.map((s) => matchDrug(s.name, s.mg, s.form ?? "oral"))), brand ? brandClash(brand, clean.map((s) => s.name)) : undefined]);
+  const isLiquid = /syrup|suspension|drops?\b|liquid|linctus|elixir/i.test(brand);
+  const [matches, clash, symptoms] = await Promise.all([
+    Promise.all(clean.map((s) => matchDrug(s.name, s.mg, s.form ?? "oral"))),
+    brand ? brandClash(brand, clean.map((s) => s.name)) : undefined,
+    symptomPlan(clean.map((s) => s.name), isLiquid),
+  ]);
   console.log(JSON.stringify({ evt: "match", n: matches.length, results: matches.map((m) => m.result + ":" + m.status), clash: !!clash })); // monitoring (Vercel logs)
-  return Response.json({ matches, clash });
+  return Response.json({ matches, clash, symptoms });
 }

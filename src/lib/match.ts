@@ -77,6 +77,8 @@ const COMMON_BRANDS: Record<string, string[]> = {
   loratadine: ["Claritin"],
   diphenhydramine: ["Benadryl"],
   chlorpheniramine: ["Chlor-Trimeton"],
+  dextromethorphan: ["Delsym", "Robitussin"],
+  guaifenesin: ["Mucinex", "Robitussin"],
   phenylephrine: ["Sudafed PE"],
   omeprazole: ["Prilosec"],
   esomeprazole: ["Nexium"],
