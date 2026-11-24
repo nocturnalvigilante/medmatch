@@ -281,16 +281,17 @@ export default function Home() {
         setAiNote(j.note ?? "Type the ingredients from the strip.");
       } else {
         if (j.salts.length && j.brand) setBrand(j.brand); // use the corrected spelling, e.g. "Combiflam"
-        setSource(j.source === "list" ? "list" : "ai");
+        setSource(j.source === "list" ? "list" : j.source === "ingredient" ? "typed" : "ai");
         setSalts(j.salts.length ? j.salts.map((s: Salt) => ({ ...s, form: "oral" })) : [{ name: "", form: "oral" }]);
         const bits = [];
-        if (!j.salts.length) bits.push(`We don't recognise “${name}”. Type the ingredients printed on the back of the strip.`);
+        if (!j.salts.length) bits.push(`We don't recognise “${name}”. Check the spelling, or type the ingredients printed on the back of the strip.`);
+        else if (j.source === "ingredient") bits.push("That's an ingredient name, so there's no brand to check.");
         else if (j.source === "list") bits.push("From our checked list of Indian brands. Still compare with the back of your strip.");
         else if (j.confidence === "high") bits.push("Our AI read these. Check them against the back of your strip.");
         if (j.confidence === "unlisted") setCheckReason("unlisted");
         setUnsure(j.salts.length > 0 && j.confidence !== "high");
-        if (j.salts.length && !j.strengthKnown) bits.push("Strength wasn't in the name. Check the mg on the strip.");
-        if (j.note) bits.push(j.note);
+        if (j.salts.length && !j.strengthKnown && j.source !== "ingredient") bits.push("Strength wasn't in the name. Check the mg on the strip.");
+        if (j.note && j.salts.length) bits.push(j.note); // e.g. "Did you mean Combiflam?"; for unknown names the AI's own wording only repeated our message
         setAiNote(bits.join(" "));
       }
       setStep("confirm");
@@ -406,7 +407,6 @@ export default function Home() {
               <button className={`${primary} mt-3 w-full py-3 text-base`} disabled={!!busy || !brand.trim()}>
                 {busy === "read" ? <><Spinner /> Reading…</> : "Next: check ingredients →"}
               </button>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && readPhoto(e.target.files[0])} />
               <button type="button" className={`${ghost} mt-2 w-full`} disabled={!!busy} onClick={() => fileRef.current?.click()}>
                 <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><circle cx="12" cy="13" r="3.5" /></svg>
                 Or take a photo of the strip
@@ -500,6 +500,8 @@ export default function Home() {
         </div>
       )}
 
+      {/* One file input for every step, so "take a photo" also works from the ingredients step. */}
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && readPhoto(e.target.files[0])} />
       {step !== "brand" && <Stepper step={step} onBack={() => (step === "result" ? setStep("confirm") : reset())} />}
 
       {step === "confirm" && (
@@ -507,6 +509,11 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight first-letter:uppercase">What&apos;s inside {brand}?</h1>
             {aiNote && <p className="mt-1 text-zinc-600 dark:text-zinc-400">{aiNote}</p>}
+            {source === "ai" && !salts.some((x) => x.name.trim()) && variants.length === 0 && (
+              <button type="button" className={`${ghost} mt-3`} disabled={!!busy} onClick={() => fileRef.current?.click()}>
+                Take a photo of the strip instead
+              </button>
+            )}
           </div>
 
           {variants.length > 0 && salts.length === 0 && (
@@ -579,7 +586,7 @@ export default function Home() {
             <LookupProgress slow={slow} />
           ) : (
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" className={`${primary} py-3`} onClick={() => lookUp()} disabled={!!busy || (unsure && !checkedStrip)}>These match my strip → find the US version</button>
+              <button type="button" className={`${primary} py-3`} onClick={() => lookUp()} disabled={!!busy || (unsure && !checkedStrip) || !salts.some((x) => x.name.trim())}>These match my strip → find the US version</button>
               <button type="button" className={link} onClick={reset}>Start over</button>
             </div>
           )}

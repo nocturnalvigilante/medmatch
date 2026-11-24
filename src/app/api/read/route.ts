@@ -1,5 +1,5 @@
 import { rateLimited } from "@/lib/ratelimit";
-import { findBrand } from "@/lib/brands";
+import { findBrand, INGREDIENTS } from "@/lib/brands";
 import { findVariants } from "@/lib/india";
 // AI step: brand name → proposed salts + strengths. The user must confirm before any lookup.
 // The model only proposes ingredients; it never decides US equivalents.
@@ -71,6 +71,15 @@ export async function POST(req: Request) {
         note: "",
       });
     }
+  }
+
+  // Design review: typing an ingredient ("acetaminophen") went to the AI, which renamed it and triggered the
+  // "could be a guess" warning. A known ingredient name has no brand to guess, so answer it directly.
+  const typed = brand.toLowerCase().replace(/\d+(\.\d+)?\s*(mg)?/g, " ").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+  const ingredient = INGREDIENTS.find((i) => i === typed);
+  if (ingredient) {
+    const mg = Number(brand.match(/(\d+(?:\.\d+)?)/)?.[1]) || undefined;
+    return Response.json({ brand: ingredient, salts: [{ name: ingredient, ...(mg ? { mg } : {}) }], strengthKnown: !!mg, confidence: "high", source: "ingredient", note: "" });
   }
 
   // Rate limit on the AI path: 15 per minute per IP (each read = 2 model calls).
