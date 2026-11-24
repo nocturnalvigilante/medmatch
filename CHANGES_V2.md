@@ -56,5 +56,8 @@ The latest numbers are on `/accuracy`.
 - **Photo reading.** Composition lines like "Pantoprazole Sodium IP eq. to Pantoprazole 40 mg" came back as the whole phrase, which breaks the US lookup. We now extract the active ingredient. Re-run: 12/12 ingredients, 10/10 strengths, 2/2 refused to guess.
 - **Photo reading, grown to 100 real photos** (the proposal promised 50). We added 100 real product photos of 85 Indian medicines from an online pharmacy (strip fronts and backs, boxes, close-ups, blurry and hologram foil, syrup bottles, and photos of bare pills with nothing readable), each labelled by hand from what is printed in it. The first run exposed two problems in the eval itself: busy-server errors from the free AI tier were scored as misreads, and strengths were checked even where the photo shows none. We fixed both (retry, then report busy errors separately). Result with the 12 rendered strips: 109/111 ingredients right, 79/79 strengths right, 19/19 refused to guess, 0 wrong at high confidence. The 2 misses (Allegra box front, Cheston Cold bottle) said "not visible" rather than guessing.
 
+## Design review
+Every page and state at 390 px and 1440 px, with what we found and fixed (typed ingredients falsely flagged as AI guesses, unknown-brand dead end, bare 404): see [`DESIGN_REVIEW.md`](DESIGN_REVIEW.md).
+
 ## Security
 See [`SECURITY.md`](SECURITY.md).
