@@ -6,7 +6,7 @@
 
 ## The core task
 1. Type an Indian brand as printed on the strip (for example "Dolo 650", "Pan-D" or "Combiflam"). Typos are fine.
-2. The AI suggests the active ingredients and strengths. **You check them against the strip** and fix them if needed.
+2. MedMatch fills in the active ingredients and strengths: from our hand-checked list, then the 209,000-medicine dataset, and only then the AI. **You check them against the strip** and fix them if needed. You can also take a photo of the strip instead.
 3. Each ingredient gets a US answer: the US generic name, OTC or prescription, US shelf brands, and whether your strength is sold in the US. If the drug isn't sold in the US, it says so and tells you to ask a pharmacist.
 4. Save it to your medicine cabinet. It warns you when two saved medicines share an ingredient. Signed out, the cabinet is saved in this browser. Signed in, it syncs to your account.
 
@@ -25,12 +25,16 @@ Warnings:
 - **Before you fly** (`/before-you-fly`): a packing checklist for students and parents.
 - **Published evals** at [`/accuracy`](https://medmatch-xi.vercel.app/accuracy).
 
-What changed and why: [`CHANGES_V2.md`](CHANGES_V2.md). Security pass: [`SECURITY.md`](SECURITY.md).
+## v2 write-ups
+- **What changed since v1, and why:** [`CHANGES_V2.md`](CHANGES_V2.md)
+- **Security pass:** [`SECURITY.md`](SECURITY.md)
+- **Design review** (every screen at phone and laptop width): [`DESIGN_REVIEW.md`](DESIGN_REVIEW.md)
+- **Evals, live:** https://medmatch-xi.vercel.app/accuracy
 
 ## How it works
 | Part | What it does |
 |---|---|
-| Gemini 3.5 Flash-Lite (`/api/read`) | Brand → proposed ingredients. This is **only a proposal**. The model never decides the US match. It answers twice in parallel (quick and careful). If the two answers disagree, or the model isn't highly confident, the page shows a red "AI isn't sure" box, and you must tick that the ingredients match your strip before going on. If the strength isn't in the name, the mg box is left empty for you to fill in. |
+| Gemini 3.5 Flash-Lite (`/api/read`) | Brand → proposed ingredients, used only for names on neither our list nor the dataset. This is **only a proposal**. The model never decides the US match. It answers twice in parallel (quick and careful). If the two answers disagree, or the model isn't highly confident, the page shows a red "AI isn't sure" box, and you must tick that the ingredients match your strip before going on. If the strength isn't in the name, the mg box is left empty for you to fill in. |
 | RxNorm (NIH) | Indian (INN) name → US ingredient (paracetamol → acetaminophen, frusemide → furosemide). Exact lookup only; fuzzy matches show up only as "did you mean?". |
 | openFDA | Whether the drug is actually sold to people in the US, OTC vs prescription, and which brands are listed. |
 | Clerk | Sign-in. |
@@ -40,16 +44,21 @@ What changed and why: [`CHANGES_V2.md`](CHANGES_V2.md). Security pass: [`SECURIT
 The matcher is [`src/lib/match.ts`](src/lib/match.ts). The rule there: if we can't verify it, say so. Never guess.
 
 ## Evidence
-- **Matching accuracy:** [`eval/match-results.csv`](eval/match-results.csv). 42 salts from common Indian medicines. The US name was right 42/42 times and the OTC/Rx status 42/42. Every row was checked by hand (`hand_check` column). Run it with `npm run match-test`.
-- **AI reading accuracy:** [`eval/ai-results.csv`](eval/ai-results.csv) is 46 calls to the real `/api/read` route, with every row checked by hand. Run it with `npm run ai-test`.
-  - **Real brands:** ingredients right 30/30 (hand check), and strength right in every case where the AI filled one in (17/17).
-  - **Typos from testers:** 8/8 corrected ("disprine" → Disprin, "cefoximine" → cefixime).
-  - **Made-up brands** (the dangerous case): the AI said "don't know" for 5/8 and invented ingredients for 3/8. **All 3 inventions were caught** by the "AI isn't sure" box. Before the two-answer check, a made-up brand got invented ingredients at *high* confidence.
-  - **Cost of the check:** 3 of 38 real names show the box anyway (one extra tick), and a read takes about 3 s instead of about 1 s.
-- **Photo reading:** [`eval/photo-results.csv`](eval/photo-results.csv) (`npm run photo-test`).
-- **AI tool use:** [`eval/tools-results.csv`](eval/tools-results.csv) (`npm run tools-test`). For 20 medicines (15 of them combinations) it checks that the right tools were called, that the answer agrees with the combination lookup, and that no US brand came from the model's memory.
-- **User tests:** [`eval/user-tests.md`](eval/user-tests.md). What real users did and said, and what we changed.
-- **v2 plan:** [`V2_PLAN.md`](V2_PLAN.md).
+All results are on [`/accuracy`](https://medmatch-xi.vercel.app/accuracy). Each eval is a script in [`scripts/`](scripts/) with its results in [`eval/`](eval/).
+
+| Eval | Result | Files |
+|---|---|---|
+| Typed brands, as the app runs them | 30/30 right, no AI calls, 8 ms median | [`read-summary.json`](eval/read-summary.json) |
+| Dataset against our hand check | 52 of 53 agree (Norflox differs; the hand check wins) | [`dataset-check.json`](eval/dataset-check.json) |
+| US name and OTC or prescription status | 42/42 and 42/42, every row checked by hand | [`match-results.csv`](eval/match-results.csv) (`npm run match-test`) |
+| AI alone, real brands and typos | 28/30 and 8/8 | [`ai-results.csv`](eval/ai-results.csv) (`npm run ai-test`) |
+| Made-up brands (the dangerous case) | The AI invented ingredients for 33 of 50. The first guard caught 23. After the fix (anything off our lists must be checked against the strip), 30 of 30 inventions caught. | [`ai-summary.json`](eval/ai-summary.json) |
+| Strip photos: 100 real product photos plus 12 test images | Ingredients right 109 of 111 scored (1 got no answer because the free AI tier was busy). The 2 misses asked for a photo of the back instead of guessing. Strength right 79/79; refused to guess on 19/19 unreadable photos; never wrong at high confidence | [`photo-results.csv`](eval/photo-results.csv) (`npm run photo-test`) |
+| AI agent with tools | Right tools 20/20; agrees with the combination lookup 15/15; no US brand from the model's memory 20/20 | [`tools-results.csv`](eval/tools-results.csv) (`npm run tools-test`) |
+
+The photos are downloaded by [`scripts/fetch-web-photos.py`](scripts/fetch-web-photos.py) and not stored in the repo (copyright).
+
+**User tests:** [`eval/user-tests.md`](eval/user-tests.md), with what real users did and said, and what we changed. **v2 plan:** [`V2_PLAN.md`](V2_PLAN.md).
 
 ## Security and cost
 - Keys live only in environment variables (`.env.local` locally, Vercel in production). `.env*` is gitignored, and [`.env.example`](.env.example) lists the names with no values.

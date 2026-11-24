@@ -30,6 +30,11 @@ Live: https://medmatch-xi.vercel.app · Repo: github.com/nocturnalvigilante/medm
 ### One line
 Indian medicine → US equivalent. AI reads the name or strip; US government data decides the match.
 
+### The 30-second AI story (say this first)
+1. **The model proposes, it never decides.** Gemini reads the name or photo; RxNorm and openFDA decide the US match.
+2. **The agent only speaks from tools.** It calls 3 lookup tools and the eval checks every US brand it names came from them (20/20).
+3. **Evals found real failures, and each one changed the app.** Made-up brands, guessed strengths, salt names in photos.
+
 ### How the AI is used
 | Step | Model | Job | Guardrail |
 |---|---|---|---|
@@ -46,12 +51,12 @@ Indian medicine → US equivalent. AI reads the name or strip; US government dat
 |---|---|
 | Typed brands, production path | **30/30**, 0 AI calls, 8 ms median |
 | Dataset vs hand check | **52/53** (Norflox differs → hand check wins) |
-| Strip photos (synthetic) | **12/12** ingredients · 10/10 strengths · 2/2 refused to guess |
+| Strip photos: 100 real product photos + 12 test images | **109/111** ingredients · **79/79** strengths · **19/19** refused to guess when unreadable · **0** wrong at high confidence |
 | Agent: right tools | **20/20** |
 | Agent: agrees with combo lookup | **15/15** |
 | Agent: no brands from memory | **20/20** |
 | AI alone: real brands / typos | 28/30 · 8/8 |
-| Made-up brands caught | 23/33 → fix → **30/30** |
+| Made-up brands (AI invented for 33 of 50) caught | 23/33 → fix → **30/30** |
 | US name / OTC status | 42/42 · 42/42 |
 
 ### Failures we found → what we changed
@@ -60,6 +65,8 @@ Indian medicine → US equivalent. AI reads the name or strip; US government dat
 - **Drotin 40 → AI said 80 mg** → never prefill a guessed strength.
 - **Tool run failed 1/20 (Gemini 503)** → retry once.
 - **Photo "Pantoprazole Sodium eq. to Pantoprazole"** broke the lookup → extract the active ingredient.
+- **Photo eval grown to 100 real photos:** the 2 misses (Allegra box front, Cheston Cold bottle) said "composition not visible, photo the back" instead of guessing. The eval itself had bugs (counted busy-server errors as failures, scored strength where none was printed) → retries, fairer scoring.
+- **Design review:** typing "acetaminophen" set off the "could be a guess" warning → ingredient names are recognised before the AI; unknown brands now offer a photo instead.
 - **Dataset only lists 2 ingredients** (a hidden paracetamol risks a double dose) → flag "may be missing one, check the strip".
 - **"Acetaminophen not sold" (TA)** = wrong form → "sold, just not as an inhaler" + switch button.
 - **Benadryl**: India = 3-ingredient syrup, US = diphenhydramine → automatic clash warning.
@@ -69,8 +76,8 @@ Indian medicine → US equivalent. AI reads the name or strip; US government dat
 - **How do you know the agent doesn't hallucinate?** The tool-use eval checks each US brand it names against the tool output (20/20).
 - **What's the riskiest failure?** A wrong ingredient reaching the result. Three layers stop it: the lists, the strip check, and the double-ask.
 - **Cost?** $0. Free-tier Gemini with no billing, plus rate limits and token caps.
-- **Security?** A fresh-session review found 9 issues, all fixed (`SECURITY.md`). Cabinet protected by RLS; keys only in env vars.
-- **What would you do next?** Real-photo eval, more real users, Hindi, a shared rate limiter.
+- **Security?** A fresh-session review found 10 issues, all fixed (`SECURITY.md`). Cabinet protected by RLS; keys only in env vars.
+- **What would you do next?** Photos taken by users (not just pharmacy photos), more real users, Hindi, a shared rate limiter.
 - **Monitoring?** Structured logs per lookup, plus "Was this right?" feedback → new eval cases.
 
 ### Users
