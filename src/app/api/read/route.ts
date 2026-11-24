@@ -1,6 +1,7 @@
 import { rateLimited } from "@/lib/ratelimit";
 import { findBrand, INGREDIENTS } from "@/lib/brands";
 import { findVariants } from "@/lib/india";
+import { doseLabel, parseDose } from "@/lib/dose";
 // AI step: brand name → proposed salts + strengths. The user must confirm before any lookup.
 // The model only proposes ingredients; it never decides US equivalents.
 
@@ -16,6 +17,7 @@ Rules:
 - If the input is an obvious misspelling of a well-known Indian brand (e.g. "combiflame" → "Combiflam", "dolo650" → "Dolo 650", "disprine" → "Disprin"), answer for the corrected brand, put the corrected spelling in "brand", and say "Did you mean <brand>?" in "note".
 - Different strengths of one brand exist (e.g. "Dolo 650" vs "Dolo 500"). If the strength is not in the input, set "strength_known": false.
 - Use Indian (INN) names as printed, e.g. "paracetamol", "pantoprazole sodium".
+- "mg" is always milligrams. For a microgram strength, give mg as a decimal (thyroxine 50 mcg → 0.05).
 - Never suggest US names or equivalents.
 Return JSON: {"brand": string, "salts": [{"name": string, "mg": number|null}], "strength_known": boolean, "confidence": "high"|"medium"|"low", "note": string}`;
 
@@ -28,6 +30,18 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const brand = String(body?.brand ?? "").trim().slice(0, 80);
   if (!brand) return Response.json({ error: "Type a brand name." }, { status: 400 });
+
+  // Design review: typing an ingredient ("acetaminophen") went to the AI, which renamed it and triggered the
+  // "could be a guess" warning. A known ingredient name has no brand to guess, so answer it directly.
+  // User test: this ran after the dataset search, so "paracetamol" came back as "Paracetamol Tablet 500 mg". Ingredient first.
+  const typed = brand.toLowerCase().replace(/\d+(\.\d+)?\s*(mg|mcg|g)?\b/g, " ").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+  const ingredient = INGREDIENTS.find((i) => i === typed);
+  if (ingredient) {
+    const amount = brand.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(mg|mcg|g)?\b/);
+    const mg = parseDose(amount ? `${amount[1]}${amount[2] ?? ""}` : undefined);
+    const strength = amount ? doseLabel(`${amount[1]}${amount[2] ?? ""}`) : undefined;
+    return Response.json({ brand: ingredient, salts: [{ name: ingredient, ...(mg ? { mg, strength } : {}) }], strengthKnown: !!mg, confidence: "high", source: "ingredient", note: "" });
+  }
 
   // Fast path (instructor feedback: reading felt slow): brands on our hand-checked list answer instantly, no AI call.
   const known = body?.skipList === true && process.env.NODE_ENV !== "production" ? undefined : findBrand(brand); // evals pass skipList to measure the AI itself
@@ -71,15 +85,6 @@ export async function POST(req: Request) {
         note: "",
       });
     }
-  }
-
-  // Design review: typing an ingredient ("acetaminophen") went to the AI, which renamed it and triggered the
-  // "could be a guess" warning. A known ingredient name has no brand to guess, so answer it directly.
-  const typed = brand.toLowerCase().replace(/\d+(\.\d+)?\s*(mg)?/g, " ").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
-  const ingredient = INGREDIENTS.find((i) => i === typed);
-  if (ingredient) {
-    const mg = Number(brand.match(/(\d+(?:\.\d+)?)/)?.[1]) || undefined;
-    return Response.json({ brand: ingredient, salts: [{ name: ingredient, ...(mg ? { mg } : {}) }], strengthKnown: !!mg, confidence: "high", source: "ingredient", note: "" });
   }
 
   // Rate limit on the AI path: 15 per minute per IP (each read = 2 model calls).

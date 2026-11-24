@@ -7,6 +7,7 @@ import { brandBySlug, describe, relatedBrands, summarize } from "@/lib/summary";
 import { MedicineActions } from "@/components/MedicineActions";
 import { Feedback } from "@/components/Feedback";
 import { SymptomCard } from "@/components/SymptomCard";
+import { showDose } from "@/lib/dose";
 
 // Rendered per request (the layout reads the Clerk session); the RxNorm/openFDA answers underneath are cached for a day.
 
@@ -78,7 +79,13 @@ export default async function MedicinePage({ params }: { params: Promise<{ slug:
       <section className="mt-6 rounded-2xl border-2 border-teal-500 bg-teal-50 p-5 dark:border-teal-700 dark:bg-teal-950/40">
         <p className="text-sm font-medium text-teal-800 dark:text-teal-300">What to ask for at a US pharmacy</p>
         <p className="mt-1 text-xl font-semibold">{s.askFor}</p>
-        <MedicineActions brand={brand.brand} askFor={s.askFor} lines={s.matches.map((m) => ({ india: `${m.query}${m.strengthMg ? ` ${m.strengthMg} mg` : ""}`, us: m.usName ?? m.query, status: STATUS_LABEL[m.status] }))} />
+        <MedicineActions
+          brand={brand.brand}
+          askFor={s.askFor}
+          lines={s.matches.map((m) => ({ india: `${m.query}${m.strengthMg ? ` ${showDose(m.strengthMg, m.strengthLabel)}` : ""}`, us: m.usName ?? m.query, status: STATUS_LABEL[m.status], note: m.sameStrengthInUS === false ? `${showDose(m.strengthMg, m.strengthLabel)} isn't a standard US strength` : undefined }))}
+          warnings={s.warnings}
+          checkHref={`/?check=${encodeURIComponent(brand.brand)}`}
+        />
       </section>
 
       {s.symptoms && (
@@ -101,7 +108,7 @@ export default async function MedicinePage({ params }: { params: Promise<{ slug:
             <div key={m.query} className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm text-zinc-500">India: {m.query}{m.strengthMg ? ` ${m.strengthMg} mg` : ""}</p>
+                  <p className="text-sm text-zinc-500">India: {m.query}{m.strengthMg ? ` ${showDose(m.strengthMg, m.strengthLabel)}` : ""}</p>
                   <p className="text-lg font-semibold capitalize">US: {m.usName ?? "not found"}</p>
                 </div>
                 <span className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${STATUS_CLS[m.status]}`}>{STATUS_LABEL[m.status]}</span>

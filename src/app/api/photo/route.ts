@@ -13,7 +13,7 @@ const PROMPT = `This is a photo of an Indian medicine strip, box or bottle.
 Read ONLY what is printed and visible. Do not use memory to fill in ingredients you cannot see.
 - "brand": the brand name as printed (e.g. "Dolo 650", "Pan-D"), or "" if not visible.
 - "composition_visible": true only if you can read a composition line such as "Each tablet contains ...".
-- "salts": the ingredients and strengths from the composition line, e.g. {"name": "paracetamol", "mg": 650}. Drop "IP"/"BP"/"USP". When the label says "X Sodium eq. to X 40 mg", give the active ingredient after "eq. to" ("pantoprazole", 40). Use null for mg if the strength isn't readable. If no composition is visible, return [].
+- "salts": the ingredients and strengths from the composition line, e.g. {"name": "paracetamol", "mg": 650}. Drop "IP"/"BP"/"USP". When the label says "X Sodium eq. to X 40 mg", give the active ingredient after "eq. to" ("pantoprazole", 40). Use null for mg if the strength isn't readable. "mg" is always milligrams: for a microgram strength give a decimal (Thyroxine 50 mcg → 0.05). If no composition is visible, return [].
 - "confidence": "high" if the text is sharp and fully readable, "medium" if partly readable, "low" if you are guessing.
 - "note": one short sentence for the user, e.g. "Composition is on the back of the strip; take a photo of that side." if it isn't visible.
 - If the image is not a medicine package, return brand "" and salts [] and say so in note.

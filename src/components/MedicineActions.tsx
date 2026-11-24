@@ -2,9 +2,9 @@
 // Pharmacist card (full screen, big type, to show at the counter or print) and share (WhatsApp / native share).
 import { useEffect, useState } from "react";
 
-export type CardLine = { india: string; us: string; status: string };
+export type CardLine = { india: string; us: string; status: string; note?: string };
 
-export function MedicineActions({ brand, askFor, lines, shareUrl }: { brand: string; askFor: string; lines: CardLine[]; shareUrl?: string }) {
+export function MedicineActions({ brand, askFor, lines, shareUrl, warnings = [], checkHref }: { brand: string; askFor: string; lines: CardLine[]; shareUrl?: string; warnings?: string[]; checkHref?: string }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -50,6 +50,7 @@ export function MedicineActions({ brand, askFor, lines, shareUrl }: { brand: str
           Share with family
         </button>
         <button onClick={copy} className={`${btn} border border-zinc-300 hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-900`}>{copied ? "✓ Copied" : "Copy"}</button>
+        {checkHref && <a href={checkHref} className={`${btn} border border-zinc-300 hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-900`}>Check my strip and save to my cabinet</a>}
       </div>
 
       {open && (
@@ -67,11 +68,18 @@ export function MedicineActions({ brand, askFor, lines, shareUrl }: { brand: str
                   <span className="text-lg text-zinc-600">India: {l.india}</span>
                   <span className="text-2xl font-semibold capitalize">US: {l.us}</span>
                   <span className="text-base font-medium">{l.status}</span>
+                  {l.note && <span className="text-base font-semibold text-amber-800 sm:col-span-3">⚠ {l.note}</span>}
                 </li>
               ))}
             </ul>
             <p className="mt-8 text-lg text-zinc-600">What I&apos;m looking for:</p>
             <p className="text-2xl font-semibold sm:text-3xl">{askFor}</p>
+            {warnings.length > 0 && (
+              <div className="mt-6 rounded-xl border-2 border-amber-500 bg-amber-50 p-4">
+                <p className="text-lg font-semibold text-amber-900">Please note</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-lg text-amber-950">{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+              </div>
+            )}
             <p className="mt-8 text-base text-zinc-500">Could you help me find the US equivalent, or tell me what to use instead? Thank you.</p>
             <p className="mt-10 text-xs text-zinc-400">From MedMatch, using NIH RxNorm and FDA listings. Not medical advice.</p>
           </div>

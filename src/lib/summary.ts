@@ -4,6 +4,7 @@ import { matchDrug, findCombination, usBrandIngredients, type DrugMatch, type Fo
 import { BRANDS, slugOf } from "@/lib/brands";
 import { bySlug, sameIngredients } from "@/lib/india";
 import { symptomPlan, type SymptomPlan } from "@/lib/symptoms";
+import { doseLabel, showDose } from "@/lib/dose";
 
 export { slugOf };
 
@@ -33,7 +34,7 @@ export type BrandSummary = {
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export async function summarize(brand: Med): Promise<BrandSummary> {
-  const matches = await Promise.all(brand.salts.map((s) => matchDrug(s.name, s.mg, brand.form)));
+  const matches = await Promise.all(brand.salts.map((s) => matchDrug(s.name, s.mg, brand.form, s.mg ? doseLabel(s.strength) : undefined)));
   const multi = brand.salts.length > 1;
   const combo = multi && brand.form === "oral" ? await findCombination(brand.salts.map((s) => s.name), brand.salts.map((s) => s.mg)) : undefined;
 
@@ -42,7 +43,7 @@ export async function summarize(brand: Med): Promise<BrandSummary> {
 
   const warnings: string[] = [];
   let askFor: string;
-  const usLine = (m: DrugMatch) => `${m.usName ?? m.query}${m.strengthMg ? ` ${m.strengthMg} mg` : ""}`;
+  const usLine = (m: DrugMatch) => `${m.usName ?? m.query}${m.strengthMg ? ` ${showDose(m.strengthMg, m.strengthLabel)}` : ""}`;
   const statusWord = (m: DrugMatch) => (m.status === "otc" ? "over the counter" : m.status === "rx" ? "needs a prescription" : m.status === "not_sold" ? "not sold" : "couldn't check");
 
   if (!multi) {
@@ -62,11 +63,16 @@ export async function summarize(brand: Med): Promise<BrandSummary> {
       : `No single US product has all of these. The parts are sold separately as ${matches.map((m) => m.usName ?? m.query).join(" and ")}. Ask a pharmacist before combining them.`;
   }
 
-  for (const m of matches) {
-    if (m.sameStrengthInUS === false && m.strengthMg) warnings.push(`${cap(m.usName ?? m.query)} ${m.strengthMg} mg isn't a standard US strength. Don't split or double tablets to match it without asking a pharmacist.`);
-    if (m.status === "rx") warnings.push(`${cap(m.usName ?? m.query)} needs a US prescription. Student health clinics, urgent care and telehealth can prescribe it.`);
-    if (m.status === "not_sold") warnings.push(`${cap(m.usName ?? m.query)} isn't sold in the US.`);
-  }
+  // User test (Augmentin): one strength sentence per ingredient read as the same bullet twice. One sentence for all of them,
+  // and none when the combination warning above already says the strengths differ.
+  const offStrength = matches.filter((m) => m.sameStrengthInUS === false && m.strengthMg);
+  if (offStrength.length && !(combo && "found" in combo && combo.found && combo.sameStrengthInUS === false))
+    warnings.push(`${offStrength.map((m) => `${cap(m.usName ?? m.query)} ${showDose(m.strengthMg, m.strengthLabel)}`).join(" and ")} ${offStrength.length > 1 ? "aren't standard US strengths" : "isn't a standard US strength"}. Don't split or double tablets to match it without asking a pharmacist.`);
+  const names = (list: DrugMatch[]) => cap(list.map((m) => m.usName ?? m.query).join(" and "));
+  const rx = matches.filter((m) => m.status === "rx");
+  const gone = matches.filter((m) => m.status === "not_sold");
+  if (rx.length) warnings.push(`${names(rx)} ${rx.length > 1 ? "need" : "needs"} a US prescription. Student health clinics, urgent care and telehealth can prescribe ${rx.length > 1 ? "them" : "it"}.`);
+  if (gone.length) warnings.push(`${names(gone)} ${gone.length > 1 ? "aren't" : "isn't"} sold in the US.`);
   if (matches.some((m) => m.usName === "acetaminophen"))
     warnings.push("Contains acetaminophen (paracetamol). Many US cold and flu products also contain it, so check labels to avoid taking a double dose.");
 

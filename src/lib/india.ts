@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { Form } from "@/lib/match";
 import { baseKey, slugOf } from "@/lib/brands";
+import { parseDose } from "@/lib/dose";
 
 export { baseKey };
 export const slugify = slugOf;
@@ -28,15 +29,14 @@ export type IndiaMed = {
 const FORM: Record<Row[1], Form> = { o: "oral", i: "inhaled", t: "topical", e: "eye", a: "any" };
 const flat = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 const DIR = path.join(process.cwd(), "data/india");
+// User test: 436 names in the source are in capitals ("PARACETANAL 170MG SUPPOSITORY"). Show them like the rest.
+const tidy = (name: string) => (/[a-z]/.test(name) ? name : name.toLowerCase().replace(/(^|[\s(/-])([a-z])/g, (_, p, c) => p + c.toUpperCase()));
 
 function toMed(r: Row): IndiaMed {
   return {
-    name: r[0],
     form: FORM[r[1]],
-    salts: r[2].map(([n, st]) => {
-      const m = st.match(/^([\d.]+)mg$/);
-      return { name: n, strength: st, mg: m ? Number(m[1]) : undefined };
-    }),
+    name: tidy(r[0]),
+    salts: r[2].map(([n, st]) => ({ name: n, strength: st, mg: parseDose(st) })), // "50mcg" → 0.05 mg (was dropped)
     maker: r[3],
     complete: r[4] === 1,
     rank: r[5],
@@ -158,7 +158,7 @@ export function sameIngredients(med: { name: string; salts: { name: string }[] }
   const key = med.salts.map((x) => x.name).sort().join("+");
   const out: IndiaMed[] = [];
   for (const r of s.rows) {
-    if (r[0] === med.name || r[1] !== "o") continue;
+    if (tidy(r[0]) === med.name || r[1] !== "o") continue;
     if (r[2].map((x) => x[0]).sort().join("+") === key) {
       out.push(toMed(r));
       if (out.length >= limit) break;

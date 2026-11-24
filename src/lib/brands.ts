@@ -80,7 +80,7 @@ export type Suggestion = { label: string; kind: "brand" | "ingredient"; detail?:
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-function editDistance(a: string, b: string) {
+export function editDistance(a: string, b: string) {
   const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
   for (let j = 1; j <= b.length; j++) d[0][j] = j;
   for (let i = 1; i <= a.length; i++)

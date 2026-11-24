@@ -3,6 +3,7 @@
 // "what to ask for at the pharmacy" using ONLY what the tools returned. The deterministic cards stay as the source of truth.
 import { matchDrug, findCombination, productsAtStrength, type Form } from "@/lib/match";
 import { rateLimited } from "@/lib/ratelimit";
+import { doseLabel, parseDose } from "@/lib/dose";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
 // Security review: cap the work one request can trigger (model turns and tool calls), not just output tokens.
@@ -21,7 +22,10 @@ Rules:
 - Never give dosing advice. If anything is prescription-only, not sold, or a different strength, set see_pharmacist true.
 - If products_at_strength returns an extended-release product, name it exactly (e.g. "Tylenol 8 HR, extended-release") and say a plain tablet at that strength is different.
 - Write plain English, not database strings: "Augmentin 500/125 mg tablets", not "amoxicillin 500 MG / clavulanate 125 MG Oral Tablet". Say "needs a prescription" or "over the counter", never "rx"/"otc".
-- If there is no US combination product, say clearly that it is sold as separate medicines and not to combine them without a pharmacist.
+- Strengths: "mg" in the message and in the tools is always milligrams; small doses are decimals (0.05 mg = 50 mcg). Each ingredient may have a "dose" as printed on the strip (e.g. "50 mcg"): when you mention the person's strength, write that dose exactly. Never write "mg" for a mcg dose.
+- Only use the strengths given in "Confirmed ingredients". Never take a number from the medicine's name. If an ingredient has no mg, don't call products_at_strength for it.
+- If the person's strength is not sold in the US (sameStrengthInUS false, or products_at_strength finds nothing), say so in ask_for itself, e.g. "Fexofenadine (Allegra), over the counter; 120 mg isn't a US strength, so ask the pharmacist which strength to take".
+- Combination medicines: if there is no US product with exactly these ingredients, or not at this strength, say the US doesn't sell it as one product and to ask the pharmacist before replacing it with separate medicines. Never tell them to buy or take the ingredients separately on their own.
 - If lookup_ingredient returns sameFamilyOtcAlternatives (the drug is not sold or needs a prescription), you may name them as "an over-the-counter option from the same drug family to ask the pharmacist about". Never present them as the same medicine.
 - Keep it short and plain: someone standing in a pharmacy aisle should understand it.
 When done, reply with ONLY this JSON (no markdown):
@@ -79,7 +83,11 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const salts = (Array.isArray(body?.salts) ? body.salts : [])
     .slice(0, 6)
-    .map((s: { name?: unknown; mg?: unknown }) => ({ name: String(s.name ?? "").trim().slice(0, 80), mg: Number(s.mg) > 0 ? Number(s.mg) : undefined }))
+    .map((s: { name?: unknown; mg?: unknown; strength?: unknown }) => {
+      const mg = Number(s.mg) > 0 ? Number(s.mg) : undefined;
+      const text = String(s.strength ?? "").slice(0, 20);
+      return { name: String(s.name ?? "").trim().slice(0, 80), mg, dose: mg && parseDose(text) === mg ? doseLabel(text) : undefined };
+    })
     .filter((s: { name: string }) => s.name);
   if (!salts.length) return Response.json({ error: "no_salts" }, { status: 400 });
 

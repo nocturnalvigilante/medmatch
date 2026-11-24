@@ -4,7 +4,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { supabaseWithClerk } from "@/lib/supabase";
 import type { DrugMatch, Form } from "@/lib/match";
-import { baseKey, findBrand, slugOf, suggest, suggestIngredient, type KnownBrand } from "@/lib/brands";
+import { baseKey, editDistance, findBrand, slugOf, suggest, suggestIngredient, type KnownBrand } from "@/lib/brands";
+import { parseDose, showDose } from "@/lib/dose";
 import { MedicineActions } from "@/components/MedicineActions";
 import { Feedback } from "@/components/Feedback";
 import { SymptomCard } from "@/components/SymptomCard";
@@ -44,6 +45,10 @@ export default function Home() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   useEffect(() => {
+    // User test: after going Back to the home page the old scroll position hid the search box, and typing went nowhere.
+    // Scroll to the top and put the cursor in the search box on every step change, including Back.
+    window.scrollTo({ top: 0 });
+    if (step === "brand") document.getElementById("brand")?.focus({ preventScroll: true });
     if (fromHistory.current) {
       fromHistory.current = false;
       return;
@@ -51,9 +56,21 @@ export default function Home() {
     const url = step === "brand" ? window.location.pathname : `?step=${step}`;
     if (step === "brand") window.history.replaceState({ step }, "", url);
     else window.history.pushState({ step }, "", url);
-    window.scrollTo({ top: 0 });
   }, [step]);
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+  }, []);
   const [brand, setBrand] = useState("");
+  // Medicine pages link here with ?check=<name> ("Check my strip and save"), which starts the lookup straight away.
+  const checkParam = useRef(typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("check"));
+  useEffect(() => {
+    const q = checkParam.current?.slice(0, 80);
+    checkParam.current = null;
+    if (!q) return;
+    setBrand(q);
+    readBrand(undefined, q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on arrival
+  }, []);
   const [salts, setSalts] = useState<Salt[]>([]);
   const [aiNote, setAiNote] = useState("");
   // AI eval: made-up brands came back with invented ingredients at "medium" confidence; real brands came back "high".
@@ -62,6 +79,9 @@ export default function Home() {
   // Why the user must tick "I checked my strip": the AI guessed, the brand isn't on any list, or the list may miss an ingredient.
   const [checkReason, setCheckReason] = useState<"" | "unlisted" | "partial">("");
   const [variants, setVariants] = useState<DatasetMed[]>([]);
+  // User test ("Zyvexa 200", made up): the AI's guess (an antibiotic) was filled in. A name on none of our lists now says
+  // "not found"; the guess is only offered behind a button, and still needs the strip check.
+  const [aiGuess, setAiGuess] = useState<{ brand: string; salts: Salt[]; reason: "" | "unlisted" } | null>(null);
   const [source, setSource] = useState("typed"); // where the ingredients came from: checked list, dataset, AI or photo (for feedback)
   const [busy, setBusy] = useState<"" | "read" | "match">("");
   const [slow, setSlow] = useState(false);
@@ -166,6 +186,7 @@ export default function Home() {
     setUnsure(false);
     setCheckReason("");
     setVariants([]);
+    setAiGuess(null);
     setCheckedStrip(false);
   }
 
@@ -190,6 +211,17 @@ export default function Home() {
       setCheckReason("partial");
     }
     setStep("confirm");
+  }
+
+  function applyAiGuess() {
+    if (!aiGuess) return;
+    setBrand(aiGuess.brand);
+    setSalts(aiGuess.salts);
+    setUnsure(true);
+    setCheckReason(aiGuess.reason);
+    setCheckedStrip(false);
+    setAiNote("Our AI's guess. It is often wrong for names that aren't on our lists, so compare every line with the strip.");
+    setAiGuess(null);
   }
 
   function pickIngredient(name: string) {
@@ -280,6 +312,16 @@ export default function Home() {
         setSalts([{ name: "", form: "oral" }]);
         setAiNote(j.note ?? "Type the ingredients from the strip.");
       } else {
+        const guessed = j.salts.length > 0 && !j.source && j.confidence !== "high"; // AI brand answer we can't check
+        if (guessed) {
+          setSource("ai");
+          setAiGuess({ brand: j.brand || name, salts: j.salts.map((s: Salt) => ({ ...s, form: "oral" })), reason: j.confidence === "unlisted" ? "unlisted" : "" });
+          setSalts([{ name: "", form: "oral" }]);
+          const corrected = j.brand && baseKey(j.brand) !== baseKey(name) ? ` Did you mean ${j.brand}?` : "";
+          setAiNote(`We couldn't find “${name}” in our lists of Indian medicines.${corrected} Type the ingredients printed on the back of the strip, or take a photo of it.`);
+          setStep("confirm");
+          return;
+        }
         if (j.salts.length && j.brand) setBrand(j.brand); // use the corrected spelling, e.g. "Combiflam"
         setSource(j.source === "list" ? "list" : j.source === "ingredient" ? "typed" : "ai");
         setSalts(j.salts.length ? j.salts.map((s: Salt) => ({ ...s, form: "oral" })) : [{ name: "", form: "oral" }]);
@@ -304,11 +346,11 @@ export default function Home() {
     }
   }
 
-  async function fetchAdvice(forBrand: string, list: { name: string; mg?: number; form?: Form }[]) {
+  async function fetchAdvice(forBrand: string, list: { name: string; mg?: number; strength?: string; form?: Form }[]) {
     const req = ++adviceReq.current; // ignore answers for a medicine the user already left
     setAdvice({ state: "loading" });
     try {
-      const res = await fetch("/api/advise", { method: "POST", body: JSON.stringify({ brand: forBrand, form: list[0]?.form ?? "oral", salts: list.map((x) => ({ name: x.name, mg: x.mg })) }) });
+      const res = await fetch("/api/advise", { method: "POST", body: JSON.stringify({ brand: forBrand, form: list[0]?.form ?? "oral", salts: list.map((x) => ({ name: x.name, mg: x.mg, strength: x.strength })) }) });
       const j = await res.json();
       if (req !== adviceReq.current) return;
       if (!res.ok || !j.advice?.askFor) return setAdvice({ state: "error" });
@@ -369,13 +411,16 @@ export default function Home() {
   function openSaved(c: Medicine) {
     setCurrent(c);
     setBrand(c.brand);
-    setSalts(c.matches.map((m) => ({ name: m.query, mg: m.strengthMg, form: m.form })));
+    setSalts(c.matches.map((m) => ({ name: m.query, mg: m.strengthMg, strength: m.strengthLabel, form: m.form })));
     setJustSaved(false);
     setStep("result");
-    fetchAdvice(c.brand, c.matches.map((m) => ({ name: m.query, mg: m.strengthMg, form: m.form })));
+    fetchAdvice(c.brand, c.matches.map((m) => ({ name: m.query, mg: m.strengthMg, strength: m.strengthLabel, form: m.form })));
   }
 
-  const overlaps = findOverlaps(current ? [...cabinet.filter((m) => m.id !== current.id), current] : cabinet);
+  // User test: a medicine saved earlier ("combiflame") was flagged against the same medicine looked up again ("Combiflam").
+  // Skip saved copies of the same medicine, and say which one is the saved one.
+  const sameMed = (a: string, b: string) => { const x = baseKey(a), y = baseKey(b); return x === y || (x.length >= 6 && editDistance(x, y) <= 1); };
+  const overlaps = findOverlaps(current ? [...cabinet.filter((m) => m.id !== current.id && !sameMed(m.brand, current.brand)), current] : cabinet);
   const form = salts[0]?.form ?? "oral";
 
   return (
@@ -510,9 +555,16 @@ export default function Home() {
             <h1 className="text-2xl font-semibold tracking-tight first-letter:uppercase">What&apos;s inside {brand}?</h1>
             {aiNote && <p className="mt-1 text-zinc-600 dark:text-zinc-400">{aiNote}</p>}
             {source === "ai" && !salts.some((x) => x.name.trim()) && variants.length === 0 && (
-              <button type="button" className={`${ghost} mt-3`} disabled={!!busy} onClick={() => fileRef.current?.click()}>
-                Take a photo of the strip instead
-              </button>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button type="button" className={ghost} disabled={!!busy} onClick={() => fileRef.current?.click()}>
+                  Take a photo of the strip instead
+                </button>
+                {aiGuess && (
+                  <button type="button" className={link} onClick={applyAiGuess}>
+                    Or see our AI&apos;s guess: {aiGuess.salts.map((x) => `${x.name}${x.mg ? ` ${showDose(x.mg, x.strength)}` : ""}`).join(" + ")}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -531,13 +583,13 @@ export default function Home() {
 
           {!(variants.length > 0 && salts.length === 0) && <>
           <div className="space-y-2 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-            <div className="grid grid-cols-[1fr_6rem_2rem] gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <div className="grid grid-cols-[1fr_7rem_2rem] gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
               <span>Ingredient</span>
-              <span>Strength (mg)</span>
+              <span>Strength</span>
               <span />
             </div>
             {salts.map((s, i) => (
-              <div key={i} className="grid grid-cols-[1fr_6rem_2rem] items-center gap-2">
+              <div key={i} className="grid grid-cols-[1fr_7rem_2rem] items-center gap-2">
                 <Combobox
                   id={`ing-${i}`}
                   ariaLabel="Ingredient"
@@ -546,7 +598,8 @@ export default function Home() {
                   options={suggestIngredient(s.name).map((n) => ({ key: n, label: n, onPick: () => setSalts(salts.map((x, j) => (j === i ? { ...x, name: n } : x))) }))}
                   placeholder="e.g. paracetamol"
                 />
-                <input aria-label="Strength in mg" className={input} inputMode="decimal" placeholder={s.strength && !s.mg ? s.strength : "mg"} title={s.strength} value={s.mg ?? ""} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, mg: Number(e.target.value) || undefined } : x)))} />
+                {/* User test (Thyronorm 50 mcg): this box only took mg. It now takes "500", "500 mg", "50 mcg" or "1 g". */}
+                <input aria-label="Strength, for example 500 mg or 50 mcg" className={`${input} ${s.strength && !s.mg ? "border-amber-400" : ""}`} placeholder="e.g. 500 mg" title={s.strength && !s.mg ? `Printed as ${s.strength}` : undefined} value={s.strength ?? (s.mg ? showDose(s.mg) : "")} onChange={(e) => setSalts(salts.map((x, j) => (j === i ? { ...x, strength: e.target.value, mg: parseDose(e.target.value) } : x)))} />
                 <button type="button" aria-label="Remove ingredient" className="h-10 text-zinc-400 hover:text-red-600" onClick={() => setSalts(salts.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
@@ -554,7 +607,10 @@ export default function Home() {
           </div>
 
           {salts.some((x) => x.name.trim() && !x.mg && !x.strength) && (
-            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">Add the mg from the back of the strip. The strength changes which US product matches.</p>
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">Add the strength from the back of the strip (for example 500 mg or 50 mcg). It changes which US product matches.</p>
+          )}
+          {salts.some((x) => x.strength?.trim() && !x.mg && !/\//.test(x.strength)) && (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">Write the strength as a number and unit, like 500 mg or 50 mcg.</p>
           )}
 
           <label className="flex flex-wrap items-center gap-2 text-sm">
@@ -602,14 +658,19 @@ export default function Home() {
           {advice?.state === "loading" && (
             <div aria-busy="true" className="rounded-2xl border-2 border-dashed border-teal-300 p-5 dark:border-teal-800">
               <p className="text-sm font-medium text-teal-800 dark:text-teal-300">What to ask for</p>
-              <p className="mt-2 flex items-center gap-2 text-sm text-zinc-500"><Spinner /> Checking US combination products and your strength. The details below are already ready.</p>
-              <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+              {/* User test: 6-8 s of spinner. Show the database answer at once; the AI summary replaces it when ready. */}
+              <ul className="mt-2 space-y-1">
+                {current.matches.filter((m) => m.result === "matched").map((m, i) => (
+                  <li key={i} className="text-lg font-semibold"><span className="capitalize">{m.usName}</span>{m.strengthMg ? ` ${showDose(m.strengthMg, m.strengthLabel)}` : ""} <span className="text-sm font-normal text-zinc-600 dark:text-zinc-400">· {STATUS[m.status].label.toLowerCase()}</span></li>
+                ))}
+              </ul>
+              <p className="mt-2 flex items-center gap-2 text-sm text-zinc-500"><Spinner /> Checking US combination products and your strength (a few seconds).</p>
             </div>
           )}
           {advice?.state === "error" && (
             <p className="rounded-xl bg-zinc-100 p-3 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
               Couldn&apos;t write a summary right now. The details below come straight from RxNorm and openFDA.{" "}
-              <button className="underline" onClick={() => fetchAdvice(current.brand, current.matches.map((m) => ({ name: m.query, mg: m.strengthMg, form: m.form })))}>Try the summary again</button>
+              <button className="underline" onClick={() => fetchAdvice(current.brand, current.matches.map((m) => ({ name: m.query, mg: m.strengthMg, strength: m.strengthLabel, form: m.form })))}>Try the summary again</button>
             </p>
           )}
           {advice?.state === "ok" && (
@@ -622,7 +683,8 @@ export default function Home() {
               <MedicineActions
                 brand={current.brand}
                 askFor={advice.askFor ?? ""}
-                lines={current.matches.map((m) => ({ india: `${m.query}${m.strengthMg ? ` ${m.strengthMg} mg` : ""}`, us: m.usName ?? m.query, status: STATUS[m.status].label }))}
+                lines={current.matches.map((m) => ({ india: `${m.query}${m.strengthMg ? ` ${showDose(m.strengthMg, m.strengthLabel)}` : ""}`, us: m.usName ?? m.query, status: STATUS[m.status].label, note: m.sameStrengthInUS === false ? `${showDose(m.strengthMg, m.strengthLabel)} isn't a standard US strength` : undefined }))}
+                warnings={cardWarnings(current)}
                 shareUrl={findBrand(current.brand) ? `${window.location.origin}/medicine/${slugOf(findBrand(current.brand)!.brand)}` : window.location.origin}
               />
             </div>
@@ -633,7 +695,7 @@ export default function Home() {
           {/* 2. Warnings, only when they apply. */}
           {current.matches.length > 1 && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              <b>This is a combination medicine.</b> Don&apos;t buy the parts separately and take them together on your own.
+              <b>This is a combination medicine.</b> Ask the pharmacist before replacing it with separate medicines.
               {current.matches.some((m) => m.status === "not_sold") && <> One part isn&apos;t sold in the US, so there is no exact US version. Ask a pharmacist what to use instead.</>}
             </div>
           )}
@@ -645,7 +707,7 @@ export default function Home() {
           {overlaps.length > 0 && (
             <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
               {overlaps.map((o) => (
-                <p key={o.drug}>⚠ <b>{o.brands.join(" and ")}</b> both contain <b>{o.drug}</b>. Taking them together can double the dose.</p>
+                <p key={o.drug}>⚠ <b>{o.brands.map((b) => (b === current.brand ? b : `${b} (saved in your cabinet)`)).join(" and ")}</b> both contain <b>{o.drug}</b>. Taking them together can double the dose.</p>
               ))}
             </div>
           )}
@@ -658,7 +720,7 @@ export default function Home() {
             ))}
             {busy === "match" && <LookupProgress slow={slow} />}
             <p className="text-xs text-zinc-500">From RxNorm (NLM) and openFDA listings. Not medical advice: confirm with a pharmacist before taking anything.</p>
-            <Feedback key={current.id} brand={current.brand} source={source} ingredients={current.matches.map((m) => `${m.query}${m.strengthMg ? ` ${m.strengthMg}` : ""}`).join(" + ")} />
+            <Feedback key={current.id} brand={current.brand} source={source} ingredients={current.matches.map((m) => `${m.query}${m.strengthMg ? ` ${showDose(m.strengthMg, m.strengthLabel)}` : ""}`).join(" + ")} />
           </div>
 
           {/* 4. Next steps. */}
@@ -731,6 +793,8 @@ function Spinner() {
   return <span aria-hidden className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />;
 }
 
+const flat = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+
 // Type-ahead input with a keyboard-friendly dropdown (arrow keys, Enter, Escape).
 function Combobox({ id, value, onChange, options, placeholder, big, autoFocus, ariaLabel }: { id: string; value: string; onChange: (v: string) => void; options: Option[]; placeholder?: string; big?: boolean; autoFocus?: boolean; ariaLabel?: string }) {
   const [open, setOpen] = useState(false);
@@ -769,6 +833,9 @@ function Combobox({ id, value, onChange, options, placeholder, big, autoFocus, a
           if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => (a + 1) % options.length); }
           else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => (a <= 0 ? options.length - 1 : a - 1)); }
           else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(options[active]); }
+          // User test: Enter on "paracetamol" skipped the "paracetamol (ingredient)" suggestion and picked a 500 mg tablet.
+          // Enter with nothing highlighted takes the top suggestion only when it is exactly what was typed.
+          else if (e.key === "Enter" && flat(options[0].label) === flat(value)) { e.preventDefault(); pick(options[0]); }
           else if (e.key === "Escape") setOpen(false);
         }}
       />
@@ -835,7 +902,7 @@ function Card({ m, onSuggest, onEdit, onForm }: { m: DrugMatch; onSuggest: (name
     <article className={box}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-sm text-zinc-500">{m.query}{m.strengthMg ? ` ${m.strengthMg} mg` : ""}{renamed ? " is called" : ""}</p>
+          <p className="text-sm text-zinc-500">{m.query}{m.strengthMg ? ` ${showDose(m.strengthMg, m.strengthLabel)}` : ""}{renamed ? " is called" : ""}</p>
           <p className="text-xl font-semibold capitalize">{m.usName ?? "—"}</p>
         </div>
         <span className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${m.soldAsForms?.length ? STATUS.unknown.cls : s.cls}`}>
@@ -862,7 +929,7 @@ function Card({ m, onSuggest, onEdit, onForm }: { m: DrugMatch; onSuggest: (name
         <p className="mt-3"><span className="text-sm text-zinc-500">Look for on the shelf: </span><b>{m.brands.join(", ")}</b>, or the generic “{m.usName}”</p>
       )}
       {(m.status === "otc" || m.status === "rx") && m.brands.length === 0 && <p className="mt-3 text-sm">Sold as the generic “{m.usName}”.</p>}
-      {m.sameStrengthInUS === false && <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{m.strengthMg} mg isn&apos;t a standard US strength. Ask the pharmacist about the dose.</p>}
+      {m.sameStrengthInUS === false && <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{showDose(m.strengthMg, m.strengthLabel)} isn&apos;t a standard US strength. Ask the pharmacist about the dose.</p>}
 
       {!!m.alternatives?.length && (
         <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100">
@@ -885,6 +952,21 @@ function Card({ m, onSuggest, onEdit, onForm }: { m: DrugMatch; onSuggest: (name
       )}
     </article>
   );
+}
+
+// User test (Allegra 120): the page said "120 mg isn't a standard US strength" but the pharmacist card left it out.
+// Everything the pharmacist should know goes on the card too.
+function cardWarnings(med: Medicine): string[] {
+  const out: string[] = [];
+  const name = (m: DrugMatch) => m.usName ?? m.query;
+  if (med.matches.length > 1) out.push("This is a combination medicine. Please advise before I replace it with separate medicines.");
+  for (const m of med.matches) {
+    if (m.sameStrengthInUS === false && m.strengthMg) out.push(`${showDose(m.strengthMg, m.strengthLabel)} ${name(m)} isn't a standard US strength. Please advise on the dose.`);
+    if (m.status === "not_sold") out.push(`${name(m)} isn't sold in the US. What could I use instead?`);
+    if (m.status === "rx") out.push(`${name(m)} needs a US prescription.`);
+  }
+  if (med.clash) out.push(med.clash);
+  return out;
 }
 
 function findOverlaps(meds: Medicine[]) {

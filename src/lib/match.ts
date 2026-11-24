@@ -2,6 +2,8 @@
 // The AI never decides matches; only RxNorm (names) and openFDA (sold / OTC / Rx) do.
 // Rule: if we can't verify, say so. Never guess.
 
+import { mgPattern } from "@/lib/dose";
+
 const RXNAV = "https://rxnav.nlm.nih.gov/REST";
 const OPENFDA = "https://api.fda.gov/drug/ndc.json";
 
@@ -32,7 +34,8 @@ const SALT_SUFFIX = /\s+(sodium|potassium|calcium|magnesium|dihydrochloride|hydr
 
 export type DrugMatch = {
   query: string; // what the user confirmed, e.g. "paracetamol"
-  strengthMg?: number;
+  strengthMg?: number; // always mg (50 mcg = 0.05)
+  strengthLabel?: string; // as printed on the strip, e.g. "50 mcg"
   form: Form;
   result: "matched" | "suggestion" | "not_found" | "error";
   usName?: string; // US generic, e.g. "acetaminophen"
@@ -226,8 +229,8 @@ function rankBrands(names: string[], prods: Product[], counts: Map<string, numbe
   return [...new Set(pick)].map((k) => byKey.get(k)! + (erOnly(k) ? " (extended-release)" : ""));
 }
 
-export async function matchDrug(query: string, strengthMg?: number, form: Form = "oral"): Promise<DrugMatch> {
-  const base: DrugMatch = { query, strengthMg, form, result: "not_found", status: "unknown", brands: [], usStrengths: [] };
+export async function matchDrug(query: string, strengthMg?: number, form: Form = "oral", strengthLabel?: string): Promise<DrugMatch> {
+  const base: DrugMatch = { query, strengthMg, strengthLabel, form, result: "not_found", status: "unknown", brands: [], usStrengths: [] };
   const q = query.trim().toLowerCase().replace(/\s+/g, " ");
   try {
     // Exact first; then without the salt suffix ("thyroxine sodium" -> "thyroxine"). Never fuzzy.
@@ -279,7 +282,7 @@ export async function matchDrug(query: string, strengthMg?: number, form: Form =
     // RxNorm keeps concepts nobody sells (e.g. aspirin 75 MG). Count a strength only if openFDA lists it.
     let sameStrengthInUS: boolean | undefined;
     if (strengthMg != null && single.length) {
-      const re = new RegExp(`(^|\\s)${strengthMg} MG\\b`);
+      const re = new RegExp(mgPattern(strengthMg));
       const ids = single.filter((p) => re.test(p.name.replace(/^.*?(?=\d)/, ""))).map((p) => p.rxcui);
       const listed = ids.length ? await fda(ids) : { otc: 0, rx: 0 };
       sameStrengthInUS = listed.otc + listed.rx > 0;
@@ -369,7 +372,7 @@ export async function productsAtStrength(name: string, mg: number) {
   try {
     const ing = await usIngredient(name);
     if (!ing) return { found: false, reason: "No US ingredient for this name." };
-    const re = new RegExp(`(^|\\s)${mg} MG\\b`);
+    const re = new RegExp(mgPattern(mg));
     const cands = (await products(ing)).filter((p) => FORM_RE.oral.test(p.name) && !p.name.includes(" / ") && re.test(p.name)).slice(0, 12);
     // In parallel (was 12 lookups one after another, the slowest part of the AI summary).
     const checked = await Promise.all(cands.map(async (p) => ({ p, f: await fda([p.rxcui]) })));
