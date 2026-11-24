@@ -1,6 +1,8 @@
 // Photo-reading eval: does Gemini read the ingredients printed on a strip, and does it refuse to guess when they aren't visible?
 // Calls the real /api/photo route (BASE=http://localhost:3000) with every image in eval/photos and writes eval/photo-results.csv.
-// The current images are SYNTHETIC (rendered foil strips with tilt, blur and glare); real phone photos go in eval/photos/real/.
+// eval/photos: SYNTHETIC strips (rendered, with tilt, blur and glare). eval/photos/web: 50 REAL product photos from an Indian online
+// pharmacy (strips, boxes, close-ups, bare pills), labelled by hand from what is printed in each photo; see eval/photos/web/labels.json
+// (it also records the source page of every photo). Real phone photos go in eval/photos/real/.
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
@@ -22,9 +24,10 @@ const EXPECTED: Record<string, { salts: Salt[]; brand?: string; mayUseList?: boo
   "no-composition-unknown": { salts: [] }, // made-up name, no composition: must not invent ingredients
   "not-medicine": { salts: [] },
 };
+if (existsSync("eval/photos/web/labels.json")) Object.assign(EXPECTED, JSON.parse(readFileSync("eval/photos/web/labels.json", "utf8")));
 
 const SUFFIX = /\b(sodium|potassium|hydrochloride|dihydrochloride|trihydrate|diluted|eq|to|as|sr|pellets|ip|bp|usp)\b/g;
-const norm = (s: string) => s.toLowerCase().replace(/amoxycillin/, "amoxicillin").replace(/clavulanate/, "clavulanic acid").replace(SUFFIX, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+const norm = (s: string) => s.toLowerCase().replace(/amoxycillin/, "amoxicillin").replace(/clavulanate/, "clavulanic acid").replace(/acetylsalicylic acid/, "aspirin").replace(/acetaminophen/, "paracetamol").replace(/chlorphenamine/, "chlorpheniramine").replace(/levothyroxine/, "thyroxine").replace(SUFFIX, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
 const same = (a: string, b: string) => {
   const x = norm(a), y = norm(b);
   return x === y || x.includes(y) || y.includes(x);
@@ -32,10 +35,12 @@ const same = (a: string, b: string) => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fmt = (s: Salt[]) => s.map((x) => `${x.name}${x.mg ? ` ${x.mg}` : ""}`).join(" + ") || "(none)";
 
-const dirs = ["eval/photos", "eval/photos/real"].filter(existsSync);
+const dirs = ["eval/photos", "eval/photos/web", "eval/photos/real"].filter(existsSync);
 const files = dirs.flatMap((d) => readdirSync(d).filter((f) => /\.(jpe?g|png)$/i.test(f)).map((f) => `${d}/${f}`));
 const rows = [["photo", "kind", "expected", "got", "source", "confidence", "ingredients_ok", "strength_ok", "invented", "seconds", "note"]];
 let n = 0, ok = 0, mgN = 0, mgOk = 0, refuseN = 0, refuseOk = 0, flaggedWrong = 0;
+const byKind: Record<string, { photos: number; ingredientsRight: number }> = {};
+const kindOf = (f: string) => (f.includes("/real/") ? "real" : f.includes("/web/") ? "web" : "synthetic");
 
 for (const f of files) {
   const id = f.split("/").pop()!.replace(/\.\w+$/, "");
@@ -64,12 +69,14 @@ for (const f of files) {
     if (!good && j.confidence === "high") flaggedWrong++; // wrong AND not flagged: the dangerous case
   }
   if (good) ok++;
+  const k = (byKind[kindOf(f)] ??= { photos: 0, ingredientsRight: 0 });
+  k.photos++; if (good) k.ingredientsRight++;
   console.log(`${good ? "  " : "✗ "}${id.padEnd(24)} → ${fmt(got)} [${j.source ?? "?"}, ${j.confidence ?? "?"}] ${(ms / 1000).toFixed(1)}s`);
-  rows.push([id, f.includes("/real/") ? "real" : "synthetic", fmt(exp.salts), fmt(got), String(j.source ?? ""), String(j.confidence ?? ""), String(good), mg, String(invented), (ms / 1000).toFixed(1), String(j.note ?? j.error ?? "")]);
+  rows.push([id, kindOf(f), fmt(exp.salts), fmt(got), String(j.source ?? ""), String(j.confidence ?? ""), String(good), mg, String(invented), (ms / 1000).toFixed(1), String(j.note ?? j.error ?? "")]);
   await sleep(7000); // free tier per-minute limit
 }
 
 writeFileSync("eval/photo-results.csv", rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n") + "\n");
-const summary = { photos: n, ingredientsRight: ok, strengthChecked: mgN, strengthRight: mgOk, unreadable: refuseN, refusedToGuess: refuseOk, wrongButHighConfidence: flaggedWrong, ranAt: new Date().toISOString() };
+const summary = { photos: n, ingredientsRight: ok, strengthChecked: mgN, strengthRight: mgOk, unreadable: refuseN, refusedToGuess: refuseOk, wrongButHighConfidence: flaggedWrong, byKind, ranAt: new Date().toISOString() };
 writeFileSync("eval/photo-summary.json", JSON.stringify(summary, null, 2) + "\n");
 console.log(`\nphotos ${n}: ingredients right ${ok}/${n} · strength right ${mgOk}/${mgN} · refused to guess ${refuseOk}/${refuseN} · wrong at high confidence ${flaggedWrong}`);

@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 !.env.example
 ACCOUNTS.local.md
+
+# real web photos for the photo eval: not ours to redistribute; re-download with scripts/fetch-web-photos.py
+/eval/photos/web/*.jpg
