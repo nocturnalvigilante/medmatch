@@ -1,10 +1,23 @@
 {
-  "photos": 12,
-  "ingredientsRight": 12,
-  "strengthChecked": 10,
-  "strengthRight": 10,
-  "unreadable": 2,
-  "refusedToGuess": 2,
+  "photos": 111,
+  "ingredientsRight": 109,
+  "strengthChecked": 79,
+  "strengthRight": 79,
+  "unreadable": 19,
+  "refusedToGuess": 19,
   "wrongButHighConfidence": 0,
-  "ranAt": "2026-11-22T01:14:13.574Z"
+  "nameOnly": 3,
+  "nameOnlyAskedForBack": 2,
+  "serviceErrors": 1,
+  "byKind": {
+    "synthetic": {
+      "photos": 12,
+      "ingredientsRight": 12
+    },
+    "web": {
+      "photos": 99,
+      "ingredientsRight": 97
+    }
+  },
+  "ranAt": "2026-11-24T03:03:13.260Z"
 }

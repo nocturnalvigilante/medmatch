@@ -589,5 +589,532 @@
   "page": "https://www.netmeds.com/product/emeset-4mg-tablet-10s-lufura-7517787",
   "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/erueOc1IUr-emeset_4mg_tablet_10s_517408_2_0.jpg",
   "brand": "Emeset 4"
+ },
+ "pacimol-650-0": {
+  "salts": [
+   {
+    "name": "paracetamol",
+    "mg": 650
+   }
+  ],
+  "page": "https://www.netmeds.com/product/pacimol-650mg-tablet-15s-lui3t8-8272867",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/JQexXUR8fS-pacimol_650mg_tablet_15s_37434_0_1.jpg",
+  "brand": "Pacimol 650"
+ },
+ "pacimol-650-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/pacimol-650mg-tablet-15s-lui3t8-8272867",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/8BUMSXlet6-pacimol_650mg_tablet_15s_652235_1_0.jpg"
+ },
+ "calpol-650-0": {
+  "salts": [
+   {
+    "name": "paracetamol",
+    "mg": 650
+   }
+  ],
+  "page": "https://www.netmeds.com/product/calpol-650-tablet-15s-lui43a-8277408",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/CvfBFREdUB-calpol_650_tablet_15s_611753_0_0.jpg",
+  "brand": "Calpol 650"
+ },
+ "febrex-plus-0": {
+  "salts": [
+   {
+    "name": "chlorpheniramine"
+   },
+   {
+    "name": "phenylephrine"
+   },
+   {
+    "name": "paracetamol"
+   }
+  ],
+  "page": "https://www.netmeds.com/product/febrex-plus-tablet-15s-lui1zk-8232749",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/uwy-hjlscN-febrex_plus_tablet_15s_275595_0_1.jpg",
+  "brand": "Febrex Plus"
+ },
+ "cheston-cold-0": {
+  "salts": [
+   {
+    "name": "ambroxol"
+   },
+   {
+    "name": "chlorpheniramine"
+   },
+   {
+    "name": "pseudoephedrine"
+   }
+  ],
+  "page": "https://www.netmeds.com/product/cheston-cold-new-syrup-60ml-miyik7-13256156",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/Fb0hGP-7C9-cheston_cold_new_syrup_60ml_868998_0_1.jpg",
+  "brand": "Cheston Cold"
+ },
+ "wikoryl-0": {
+  "salts": [
+   {
+    "name": "paracetamol",
+    "mg": 500
+   },
+   {
+    "name": "phenylephrine",
+    "mg": 10
+   },
+   {
+    "name": "chlorpheniramine",
+    "mg": 2
+   }
+  ],
+  "page": "https://www.netmeds.com/product/wikoryl-10-tablet-15s-lui5f4-8304160",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/IV4K2CAwNx-wikoryl_10_tablet_15s_443979_0_13.jpg",
+  "brand": "Wikoryl 10"
+ },
+ "wikoryl-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/wikoryl-10-tablet-15s-lui5f4-8304160",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/XqXXNEoitS-wikoryl_10_tablet_15s_494181_1_12.jpg"
+ },
+ "solvin-cold-0": {
+  "salts": [
+   {
+    "name": "paracetamol",
+    "mg": 500
+   },
+   {
+    "name": "phenylephrine",
+    "mg": 10
+   },
+   {
+    "name": "chlorpheniramine",
+    "mg": 2
+   }
+  ],
+  "page": "https://www.netmeds.com/product/solvin-cold-tablet-10s-lui5g9-8304606",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/VRPd6BZgZS-solvin_cold_tablet_10_s_354826_0_1.jpg",
+  "brand": "Solvin Cold"
+ },
+ "solvin-cold-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/solvin-cold-tablet-10s-lui5g9-8304606",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/F1wdc9XGTI-solvin_cold_tablet_10_s_354827_1_1.jpg"
+ },
+ "teczine-1": {
+  "salts": [
+   {
+    "name": "levocetirizine",
+    "mg": 5
+   }
+  ],
+  "page": "https://www.netmeds.com/product/teczine-tablet-10s-lui1tc-8229497",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/7EVEtIe0yF-teczine_tablet_10s_579431_1_0.jpg",
+  "brand": "Teczine"
+ },
+ "alerid-2": {
+  "salts": [
+   {
+    "name": "cetirizine"
+   }
+  ],
+  "page": "https://www.netmeds.com/product/alerid-syrup-60ml-lui3o7-8267668",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/xlSD47JZpK-alerid_syrup_60ml_579384_2_0.jpg",
+  "brand": "Alerid"
+ },
+ "zerodol-p-0": {
+  "salts": [
+   {
+    "name": "aceclofenac",
+    "mg": 100
+   },
+   {
+    "name": "paracetamol",
+    "mg": 325
+   }
+  ],
+  "page": "https://www.netmeds.com/product/zerodol-p-tablet-10s-lui2o9-8247668",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/F7HI7rfln9-zerodol_p_tablet_10s_43322_0_1.jpg",
+  "brand": "Zerodol-P"
+ },
+ "hifenac-p-0": {
+  "salts": [
+   {
+    "name": "aceclofenac",
+    "mg": 100
+   },
+   {
+    "name": "paracetamol",
+    "mg": 325
+   }
+  ],
+  "page": "https://www.netmeds.com/product/hifenac-p-tablet-15s-lui3jj-8266104",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/EIJb0qjeuW-hifenac_p_tablet_15s_0_1.jpg",
+  "brand": "Hifenac-P"
+ },
+ "hifenac-p-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/hifenac-p-tablet-15s-lui3jj-8266104",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/0yYAnpyt7l-hifenac_p_tablet_15s_1_0.jpg"
+ },
+ "ibugesic-plus-0": {
+  "salts": [
+   {
+    "name": "ibuprofen",
+    "mg": 400
+   },
+   {
+    "name": "paracetamol",
+    "mg": 325
+   }
+  ],
+  "page": "https://www.netmeds.com/product/ibugesic-plus-tablet-20s-lufuwd-7534309",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/IGm_XF_biz-ibugesic_plus_tablet_20s_64818_0_2.jpg",
+  "brand": "Ibugesic Plus"
+ },
+ "ibugesic-plus-2": {
+  "salts": [
+   {
+    "name": "ibuprofen",
+    "mg": 400
+   },
+   {
+    "name": "paracetamol",
+    "mg": 325
+   }
+  ],
+  "page": "https://www.netmeds.com/product/ibugesic-plus-tablet-20s-lufuwd-7534309",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/1G4t_sTJT9-ibugesic_plus_tablet_20s_652447_2_0.jpg",
+  "brand": "Ibugesic Plus"
+ },
+ "ketorol-dt-0": {
+  "salts": [
+   {
+    "name": "ketorolac",
+    "mg": 10
+   }
+  ],
+  "page": "https://www.netmeds.com/product/ketorol-dt-10mg-tablet-15s-lui1sh-8227898",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/3GtCjYftqP-ketorol_dt_10mg_tablet_15s_52165_0_2.jpg",
+  "brand": "Ketorol-DT"
+ },
+ "ketorol-dt-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/ketorol-dt-10mg-tablet-15s-lui1sh-8227898",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/hle1MGD0jC-ketorol_dt_10mg_tablet_15s_654916_1_0.jpg"
+ },
+ "naprosyn-500-0": {
+  "salts": [
+   {
+    "name": "naproxen",
+    "mg": 550
+   }
+  ],
+  "page": "https://www.netmeds.com/product/naprosyn-500-tablet-15s-lui1ro-8228016",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/shB6mgDDdV-naprosyn_500_tablet_15s_655360_0_2.jpg",
+  "brand": "Naprosyn 500+"
+ },
+ "naprosyn-500-2": {
+  "salts": [
+   {
+    "name": "naproxen",
+    "mg": 550
+   }
+  ],
+  "page": "https://www.netmeds.com/product/naprosyn-500-tablet-15s-lui1ro-8228016",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/AtSK_haXi9-naprosyn_500_tablet_15s_796270_2_1.jpg",
+  "brand": "Naprosyn 500+"
+ },
+ "aciloc-150-1": {
+  "salts": [
+   {
+    "name": "ranitidine",
+    "mg": 300
+   }
+  ],
+  "page": "https://www.netmeds.com/product/aciloc-300mg-tablet-20s-lui28y-8240774",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/1z6caJcnW--aciloc_300mg_tablet_20s_667354_1_0.jpg",
+  "brand": "Aciloc 300"
+ },
+ "famocid-40-0": {
+  "salts": [
+   {
+    "name": "famotidine"
+   }
+  ],
+  "page": "https://www.netmeds.com/product/famocid-40mg-tablet-14s-lui7pn-8348238",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/-74scbpAVA-famocid_40mg_tablet_14s_41264_0_2.jpg",
+  "brand": "Famocid 40"
+ },
+ "eldoper-0": {
+  "salts": [
+   {
+    "name": "loperamide"
+   }
+  ],
+  "page": "https://www.netmeds.com/product/eldoper-capsule-15s-lui5i6-8306293",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/IT8rsuaYUF-eldoper_capsule_15s_746195_0_0.jpg",
+  "brand": "Eldoper"
+ },
+ "vomikind-2": {
+  "salts": [
+   {
+    "name": "ondansetron",
+    "mg": 4
+   }
+  ],
+  "page": "https://www.netmeds.com/product/vomikind-md-4mg-tablet-10s-lui3q1-8270470",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/poncp9d7hK-vomikind_md_4mg_tablet_10s_610292_2_0.jpg",
+  "brand": "Vomikind MD 4"
+ },
+ "vomikind-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/vomikind-md-4mg-tablet-10s-lui3q1-8270470",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/g4h0knwtle-vomikind_md_4mg_tablet_10s_610290_1_0.jpg"
+ },
+ "domstal-2": {
+  "salts": [
+   {
+    "name": "domperidone",
+    "mg": 10
+   }
+  ],
+  "page": "https://www.netmeds.com/product/domstal-10mg-tablet-10s-lui2js-8246284",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/nd-AwJgOIa-domstal_10mg_tablet_10s_583897_2_0.jpg",
+  "brand": "Domstal"
+ },
+ "domstal-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/domstal-10mg-tablet-10s-lui2js-8246284",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/YBDru438k--domstal_10mg_tablet_10s_583896_1_0.jpg"
+ },
+ "perinorm-2": {
+  "salts": [
+   {
+    "name": "metoclopramide",
+    "mg": 10
+   }
+  ],
+  "page": "https://www.netmeds.com/product/perinorm-tablet-10s-lui1ul-8228916",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/cRzrz4x_CV-perinorm_tablet_10s_558821_2_0.jpg",
+  "brand": "Perinorm"
+ },
+ "mox-500-0": {
+  "salts": [
+   {
+    "name": "amoxicillin",
+    "mg": 500
+   }
+  ],
+  "page": "https://www.netmeds.com/product/mox-500mg-capsule-15s-lui61w-8316711",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/Hr_rnnZ--T-mox_500mg_capsule_15s_45747_0_1.jpg",
+  "brand": "Mox 500"
+ },
+ "novamox-0": {
+  "salts": [
+   {
+    "name": "amoxicillin",
+    "mg": 500
+   }
+  ],
+  "page": "https://www.netmeds.com/product/novamox-500mg-capsule-15s-lui1uy-8231059",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/uVrSKau1Bf-novamox_500mg_capsule_15s_40647_0_1.jpg",
+  "brand": "Novamox 500"
+ },
+ "cifran-500-0": {
+  "salts": [
+   {
+    "name": "ciprofloxacin",
+    "mg": 500
+   }
+  ],
+  "page": "https://www.netmeds.com/product/cifran-500mg-tablet-10s-lufur9-7518095",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/hgFjfPNngQ-cifran_500mg_tablet_10s_46256_0_1.jpg",
+  "brand": "Cifran 500"
+ },
+ "cifran-500-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/cifran-500mg-tablet-10s-lufur9-7518095",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/KgVg-PHWK7-cifran_500mg_tablet_10s_582661_1_0.jpg"
+ },
+ "o2-tablet-0": {
+  "salts": [
+   {
+    "name": "ofloxacin",
+    "mg": 200
+   },
+   {
+    "name": "ornidazole",
+    "mg": 500
+   }
+  ],
+  "page": "https://www.netmeds.com/product/o2-tablet-10s-lui494-8280727",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/Z92JWDcPEi-o2_tablet_10s_47049_0_1.jpg",
+  "brand": "O2"
+ },
+ "o2-tablet-2": {
+  "salts": [
+   {
+    "name": "ofloxacin",
+    "mg": 200
+   },
+   {
+    "name": "ornidazole",
+    "mg": 500
+   }
+  ],
+  "page": "https://www.netmeds.com/product/o2-tablet-10s-lui494-8280727",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/Xoazecndit-o2_tablet_10s_556887_2_0.jpg",
+  "brand": "O2"
+ },
+ "oflox-200-0": {
+  "salts": [
+   {
+    "name": "ofloxacin",
+    "mg": 200
+   }
+  ],
+  "page": "https://www.netmeds.com/product/oflox-200mg-tablet-10s-lui5sp-8310337",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/kke-iKimVB-oflox_200mg_tablet_10s_44268_0_6.jpg",
+  "brand": "Oflox 200"
+ },
+ "oflox-200-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/oflox-200mg-tablet-10s-lui5sp-8310337",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/EIs2wyqAvV-oflox_200mg_tablet_10s_520988_1_5.jpg"
+ },
+ "zifi-200-1": {
+  "salts": [
+   {
+    "name": "cefixime",
+    "mg": 200
+   }
+  ],
+  "page": "https://www.netmeds.com/product/zifi-200mg-tablet-10s-lui2y4-8252984",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/xan57mqNMP-zifi_200mg_tablet_10s_912071_1_0.jpg",
+  "brand": "Zifi 200"
+ },
+ "zentel-0": {
+  "salts": [
+   {
+    "name": "albendazole",
+    "mg": 400
+   }
+  ],
+  "page": "https://www.netmeds.com/product/zentel-tablet-1s-lui285-8238072",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/kdQelm5J1h-zentel_tablet_1s_45212_0_1.jpg",
+  "brand": "Zentel"
+ },
+ "zentel-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/zentel-tablet-1s-lui285-8238072",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/LM1sqLukgH-zentel_tablet_1s_581452_1_0.jpg"
+ },
+ "forcan-150-0": {
+  "salts": [
+   {
+    "name": "fluconazole",
+    "mg": 150
+   }
+  ],
+  "page": "https://www.netmeds.com/product/forcan-150-tablet-4s-lui6qg-8329677",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/ieU1vhsTWe-forcan_150_tablet_4s_411747_0_1.jpg",
+  "brand": "Forcan 150"
+ },
+ "amlokind-2": {
+  "salts": [
+   {
+    "name": "amlodipine",
+    "mg": 5
+   },
+   {
+    "name": "atenolol",
+    "mg": 50
+   }
+  ],
+  "page": "https://www.netmeds.com/product/amlokind-at-tablet-15s-lufv5h-7531187",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/wH8K080YT8-amlokind_at_tablet_15s_654315_2_1.jpg",
+  "brand": "Amlokind AT"
+ },
+ "losar-50-0": {
+  "salts": [
+   {
+    "name": "losartan",
+    "mg": 50
+   }
+  ],
+  "page": "https://www.netmeds.com/product/losar-50mg-tablet-15s-lui3vq-8272212",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/wVAPEzYtXZ-losar_50mg_tablet_15s_35197_0_1.jpg",
+  "brand": "Losar 50"
+ },
+ "losar-50-1": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/losar-50mg-tablet-15s-lui3vq-8272212",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/Ng5cO8CFvI-losar_50mg_tablet_15s_579297_1_0.jpg"
+ },
+ "atorva-10-0": {
+  "salts": [
+   {
+    "name": "atorvastatin"
+   }
+  ],
+  "page": "https://www.netmeds.com/product/atorva-10mg-tablet-15s-lui341-8256716",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/v6Z46EBTg4-atorva_10mg_tablet_15s_98809_0_1.jpg",
+  "brand": "Atorva 10"
+ },
+ "rosuvas-10-1": {
+  "salts": [
+   {
+    "name": "rosuvastatin",
+    "mg": 10
+   }
+  ],
+  "page": "https://www.netmeds.com/product/rosuvas-10mg-tablet-15s-lui2ab-8239481",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/lco8LsYRyh-rosuvas_10mg_tablet_15s_651845_1_0.jpg",
+  "brand": "Rosuvas 10"
+ },
+ "clopilet-75-2": {
+  "salts": [
+   {
+    "name": "clopidogrel"
+   }
+  ],
+  "page": "https://www.netmeds.com/product/clopilet-75mg-tablet-15s-lui4it-8286255",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/99vNQO3i6A-clopilet_75mg_tablet_15s_48061_2_1.jpg",
+  "brand": "Clopilet"
+ },
+ "neurobion-forte-2": {
+  "salts": [],
+  "page": "https://www.netmeds.com/product/neurobion-forte-tablet-30s-lui5uq-8313494",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/HQSj0kpYXD-neurobion_forte_tablet_30s_802599_2_5.jpg"
+ },
+ "folvite-0": {
+  "salts": [
+   {
+    "name": "folic acid",
+    "mg": 5
+   }
+  ],
+  "page": "https://www.netmeds.com/product/folvite-tablet-45s-lui4j9-8286722",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/zD6Aj4fvR8-folvite_tablet_45s_36611_0_3.jpg",
+  "brand": "Folvite"
+ },
+ "lasix-40-0": {
+  "salts": [
+   {
+    "name": "furosemide",
+    "mg": 40
+   }
+  ],
+  "page": "https://www.netmeds.com/product/lasix-40mg-tablet-15s-lui3hh-8264605",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/w-DdNQOl5T-lasix_40mg_tablet_15s_33992_0_2.jpg",
+  "brand": "Lasix 40"
+ },
+ "lasix-40-1": {
+  "salts": [
+   {
+    "name": "furosemide",
+    "mg": 40
+   }
+  ],
+  "page": "https://www.netmeds.com/product/lasix-40mg-tablet-15s-lui3hh-8264605",
+  "image": "https://cdn.netmeds.tech/v2/plain-cake-860195/netmed/wrkr/products/assets/item/free/resize-w:400/xAG-DaHi1C-lasix_40mg_tablet_15s_581251_1_1.jpg",
+  "brand": "Lasix 40"
  }
 }

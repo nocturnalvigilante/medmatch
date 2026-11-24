@@ -68,11 +68,11 @@ export default function Accuracy() {
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Reading a photo of the strip</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <Tile big={`${photo.ingredientsRight}/${photo.photos}`} label="Ingredients right" detail="Read from the composition printed on the strip, including tilted, blurry and glare shots." />
-          <Tile big={`${photo.strengthRight}/${photo.strengthChecked}`} label="Strength right" detail="Every mg value it read matched the label." />
+          <Tile big={`${photo.ingredientsRight}/${photo.photos}`} label="Ingredients right" detail="Read from the composition printed on the strip or box: fronts, backs, close-ups, blurry and hologram foil." />
+          <Tile big={`${photo.strengthRight}/${photo.strengthChecked}`} label="Strength right" detail={photo.strengthRight === photo.strengthChecked ? "Every mg value it read matched the label." : "Photos where the mg it read matched the label."} />
           <Tile big={`${photo.refusedToGuess}/${photo.unreadable}`} label="Refused to guess" detail="Photos with no readable composition (or not a medicine) got no ingredients, not a guess." />
         </div>
-        <p className="mt-2 text-xs text-zinc-500">Test set: synthetic strip photos with tilt, blur and glare; real phone photos are being added. Last run {date(photo.ranAt)}. <a className="underline" href={`${REPO}/eval/photo-results.csv`}>Every result</a></p>
+        <p className="mt-2 text-xs text-zinc-500">Test set: {photo.byKind?.web?.photos ?? 0} real product photos of Indian medicines from an online pharmacy (each labelled by hand from what is printed in it), plus {photo.byKind?.synthetic?.photos ?? 0} rendered strips with tilt, blur and glare. Photos showing only the brand count as right if the app fills in from our checked list or asks for the back. {photo.serviceErrors ? `${photo.serviceErrors} photos got no answer because the free AI tier was busy; they are not scored. ` : ""}Last run {date(photo.ranAt)}. <a className="underline" href={`${REPO}/eval/photo-results.csv`}>Every result</a></p>
       </section>
 
       <section className="mt-10">

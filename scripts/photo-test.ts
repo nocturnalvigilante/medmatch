@@ -1,6 +1,6 @@
 // Photo-reading eval: does Gemini read the ingredients printed on a strip, and does it refuse to guess when they aren't visible?
 // Calls the real /api/photo route (BASE=http://localhost:3000) with every image in eval/photos and writes eval/photo-results.csv.
-// eval/photos: SYNTHETIC strips (rendered, with tilt, blur and glare). eval/photos/web: 50 REAL product photos from an Indian online
+// eval/photos: SYNTHETIC strips (rendered, with tilt, blur and glare). eval/photos/web: 100 REAL product photos from an Indian online
 // pharmacy (strips, boxes, close-ups, bare pills), labelled by hand from what is printed in each photo; see eval/photos/web/labels.json
 // (it also records the source page of every photo). Real phone photos go in eval/photos/real/.
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
@@ -27,7 +27,7 @@ const EXPECTED: Record<string, { salts: Salt[]; brand?: string; mayUseList?: boo
 if (existsSync("eval/photos/web/labels.json")) Object.assign(EXPECTED, JSON.parse(readFileSync("eval/photos/web/labels.json", "utf8")));
 
 const SUFFIX = /\b(sodium|potassium|hydrochloride|dihydrochloride|trihydrate|diluted|eq|to|as|sr|pellets|ip|bp|usp)\b/g;
-const norm = (s: string) => s.toLowerCase().replace(/amoxycillin/, "amoxicillin").replace(/clavulanate/, "clavulanic acid").replace(/acetylsalicylic acid/, "aspirin").replace(/acetaminophen/, "paracetamol").replace(/chlorphenamine/, "chlorpheniramine").replace(/levothyroxine/, "thyroxine").replace(SUFFIX, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+const norm = (s: string) => s.toLowerCase().replace(/amoxycillin/, "amoxicillin").replace(/clavulanate/, "clavulanic acid").replace(/acetylsalicylic acid/, "aspirin").replace(/acetaminophen/, "paracetamol").replace(/chlorphenamine/, "chlorpheniramine").replace(/levothyroxine/, "thyroxine").replace(/frusemide/, "furosemide").replace(/naproxen sodium/, "naproxen").replace(SUFFIX, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
 const same = (a: string, b: string) => {
   const x = norm(a), y = norm(b);
   return x === y || x.includes(y) || y.includes(x);
@@ -38,6 +38,7 @@ const fmt = (s: Salt[]) => s.map((x) => `${x.name}${x.mg ? ` ${x.mg}` : ""}`).jo
 const dirs = ["eval/photos", "eval/photos/web", "eval/photos/real"].filter(existsSync);
 const files = dirs.flatMap((d) => readdirSync(d).filter((f) => /\.(jpe?g|png)$/i.test(f)).map((f) => `${d}/${f}`));
 const rows = [["photo", "kind", "expected", "got", "source", "confidence", "ingredients_ok", "strength_ok", "invented", "seconds", "note"]];
+let serviceErrors = 0, nameOnlyN = 0, nameOnlyAskedForBack = 0;
 let n = 0, ok = 0, mgN = 0, mgOk = 0, refuseN = 0, refuseOk = 0, flaggedWrong = 0;
 const byKind: Record<string, { photos: number; ingredientsRight: number }> = {};
 const kindOf = (f: string) => (f.includes("/real/") ? "real" : f.includes("/web/") ? "web" : "synthetic");
@@ -47,8 +48,22 @@ for (const f of files) {
   const exp = EXPECTED[id];
   if (!exp) continue; // real photos need an entry above to be scored
   const t = Date.now();
-  const res = await fetch(`${BASE}/api/photo`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image: readFileSync(f).toString("base64"), mime: f.endsWith("png") ? "image/png" : "image/jpeg" }) });
-  const j = await res.json().catch(() => ({}));
+  // The free Gemini tier sometimes answers 429/503 ("couldn't read that photo right now"). That is the service being busy,
+  // not a misread, so retry up to twice and, if it still fails, count it as a service error instead of scoring it.
+  let j: any = {};
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(`${BASE}/api/photo`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image: readFileSync(f).toString("base64"), mime: f.endsWith("png") ? "image/png" : "image/jpeg" }) });
+    j = await res.json().catch(() => ({}));
+    if (j.source || j.salts?.length) break;
+    if (attempt < 2) await sleep(20000);
+  }
+  if (!j.source && !j.salts?.length) {
+    serviceErrors++;
+    console.log(`! ${id.padEnd(24)} service error after 3 tries: ${j.error ?? j.note ?? "?"}`);
+    rows.push([id, kindOf(f), fmt(exp.salts), "(service error)", "", "", "", "", "", "", String(j.error ?? j.note ?? "")]);
+    await sleep(7000);
+    continue;
+  }
   const got: Salt[] = j.salts ?? [];
   const ms = Date.now() - t;
   n++;
@@ -60,13 +75,15 @@ for (const f of files) {
     if (good) refuseOk++;
   } else {
     good = got.length === exp.salts.length && exp.salts.every((e) => got.some((g) => same(g.name, e.name)));
-    const checks = exp.salts.map((e) => ({ e, g: got.find((g) => same(g.name, e.name)) })).filter((c) => c.g?.mg);
+    // Brand visible but no composition: filling in from our checked list is right, and so is asking for a photo of the back.
+    if (exp.mayUseList) { nameOnlyN++; if (!got.length) { good = true; nameOnlyAskedForBack++; } }
+    const checks = exp.salts.map((e) => ({ e, g: got.find((g) => same(g.name, e.name)) })).filter((c) => c.e.mg && c.g?.mg); // only where the photo shows a strength
     if (checks.length) {
       const m = checks.every((c) => c.g!.mg === c.e.mg);
       mgN++; if (m) mgOk++;
       mg = String(m);
     }
-    if (!good && j.confidence === "high") flaggedWrong++; // wrong AND not flagged: the dangerous case
+    if (!good && got.length && j.confidence === "high") flaggedWrong++; // wrong ingredients AND not flagged: the dangerous case
   }
   if (good) ok++;
   const k = (byKind[kindOf(f)] ??= { photos: 0, ingredientsRight: 0 });
@@ -77,6 +94,6 @@ for (const f of files) {
 }
 
 writeFileSync("eval/photo-results.csv", rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n") + "\n");
-const summary = { photos: n, ingredientsRight: ok, strengthChecked: mgN, strengthRight: mgOk, unreadable: refuseN, refusedToGuess: refuseOk, wrongButHighConfidence: flaggedWrong, byKind, ranAt: new Date().toISOString() };
+const summary = { photos: n, ingredientsRight: ok, strengthChecked: mgN, strengthRight: mgOk, unreadable: refuseN, refusedToGuess: refuseOk, wrongButHighConfidence: flaggedWrong, nameOnly: nameOnlyN, nameOnlyAskedForBack, serviceErrors, byKind, ranAt: new Date().toISOString() };
 writeFileSync("eval/photo-summary.json", JSON.stringify(summary, null, 2) + "\n");
-console.log(`\nphotos ${n}: ingredients right ${ok}/${n} · strength right ${mgOk}/${mgN} · refused to guess ${refuseOk}/${refuseN} · wrong at high confidence ${flaggedWrong}`);
+console.log(`\nphotos ${n}: ingredients right ${ok}/${n} · strength right ${mgOk}/${mgN} · refused to guess ${refuseOk}/${refuseN} · wrong at high confidence ${flaggedWrong} · service errors (not scored) ${serviceErrors}`);

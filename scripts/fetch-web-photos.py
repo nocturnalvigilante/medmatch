@@ -1,4 +1,4 @@
-# Downloads the 50 real product photos used by the photo eval (eval/photos/web/*.jpg).
+# Downloads the 100 real product photos used by the photo eval (eval/photos/web/*.jpg).
 # The photos belong to the online pharmacy that published them, so they are not stored in this repo;
 # eval/photos/web/labels.json lists each photo's source page, image URL and the hand-labelled composition.
 import json, os, urllib.request
