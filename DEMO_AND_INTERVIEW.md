@@ -16,7 +16,7 @@ Live: https://medmatch-xi.vercel.app · Repo: github.com/nocturnalvigilante/medm
 | 0:30 | Result | "An AI agent called RxNorm and FDA tools: one US combo product, prescription status, what to ask for." |
 | 0:45 | **Show to pharmacist** | "Big card for the counter, or share with family on WhatsApp." |
 | 0:55 | Camera → photo of real strip | "Reads the composition printed on the foil, not the AI's memory." |
-| 1:15 | Type `Torvalin 10` (fake) | "The AI guesses atorvastatin. Our eval caught that, so unknown brands force a strip check." |
+| 1:15 | Type `Torvalin 10` (fake) | "The AI would guess atorvastatin. Our eval caught that, so a name on none of our lists says *we couldn't find it* and nothing is filled in." |
 | 1:30 | Type `Benadryl syrup` | "Same name, different medicine in the US. And a US cough-syrup plan by symptom." |
 | 1:45 | `/accuracy` | "Every eval is public, failures included." |
 | 1:55 | QR on homepage | "Scan it, try your own medicine." |
@@ -60,7 +60,9 @@ Indian medicine → US equivalent. AI reads the name or strip; US government dat
 | US name / OTC status | 42/42 · 42/42 |
 
 ### Failures we found → what we changed
-- **Made-up brands:** "Torvalin 10" → confident atorvastatin, both answers → the double-ask missed 10/33 → **anything off our lists must be confirmed against the strip**.
+- **Made-up brands:** "Torvalin 10" → confident atorvastatin, both answers → the double-ask missed 10/33 → **anything off our lists must be confirmed against the strip**. The walkthrough then showed even a gated guess looked too official → now "we couldn't find it", with the guess behind a link.
+- **Thyronorm 50 mcg read as 50 mg** (walkthrough) → the AI summary said the strength isn't sold in the US, which is wrong → strengths now carry their unit, and the AI is told the dose as printed.
+- **AI box contradicted the combination banner** (walkthrough) → one shared rule: ask the pharmacist before replacing it with separate medicines.
 - **"Duraflux" (v1):** invented at high confidence → **ask twice, flag disagreement**.
 - **Drotin 40 → AI said 80 mg** → never prefill a guessed strength.
 - **Tool run failed 1/20 (Gemini 503)** → retry once.
@@ -83,4 +85,4 @@ Indian medicine → US equivalent. AI reads the name or strip; US government dat
 ### Users
 - **v1:** a friend in India ("not for me") → clearer homepage; Pullu's typos → typo handling.
 - **TA video:** type-ahead, speed, dead ends, value prop, hierarchy, cabinet → all fixed (`CHANGES_V2.md`).
-- **v2 testers:** _fill in after testing_.
+- **v2 walkthrough:** an agent did the core task as 10 new users (the assignment's suggested step 2). It found the mcg bug, the contradicting combination advice and the pharmacist card missing a warning. All fixed (`eval/user-tests.md`).

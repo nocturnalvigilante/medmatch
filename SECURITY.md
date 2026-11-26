@@ -35,5 +35,5 @@ An independent review ran in a fresh agent session with read-only access. It rea
 - **No Content-Security-Policy yet.** Clerk and Supabase need a carefully scoped policy; it's planned once that list of allowed sources is tested.
 
 ## Still to do by hand
-- Widen the agent deny rules in `.claude/settings.json` to cover `head`/`tail`/`grep`/`sed`/`source` on `.env*` and `ACCOUNTS.local.md` (the review found that only `cat` is blocked).
+- ~~Widen the agent deny rules~~ **Done (Nov 25):** `.claude/settings.json` now blocks reading `.env*` and `ACCOUNTS.local.md` with `cat`, `head`, `tail`, `less`, `more`, `grep`, `sed`, `awk`, `source`, `cp`, `base64` and `xxd`, as well as the Read and Edit tools.
 - Run the new constraints in `supabase/cabinet.sql` in the Supabase SQL editor.
